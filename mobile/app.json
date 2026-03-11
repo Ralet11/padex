@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "PadelApp",
+    "slug": "padel-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0E1A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.padelapp.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0E1A"
+      },
+      "package": "com.padelapp.mobile"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        { "photosPermission": "Necesitamos acceso a tus fotos para que puedas subir tu foto de perfil." }
+      ]
+    ]
+  }
+}
