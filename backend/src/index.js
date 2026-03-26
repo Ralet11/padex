@@ -8,7 +8,10 @@ const path = require('path');
 const os = require('os');
 const jwt = require('jsonwebtoken');
 
-const { getDB } = require('./database');
+const { sequelize, User, Connection, Message } = require('./models');
+const seedDatabase = require('./seed');
+const SyncWorker = require('./services/SyncWorker');
+const { setIO, getVenueRoom, getVenueDateRoom } = require('./services/realtime');
 
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
@@ -17,6 +20,8 @@ const matchesRoutes = require('./routes/matches');
 const socialRoutes = require('./routes/social');
 const messagesRoutes = require('./routes/messages');
 const ratingsRoutes = require('./routes/ratings');
+const leaderboardRoutes = require('./routes/leaderboard');
+const partnersRoutes = require('./routes/partners');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,6 +29,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
+setIO(io);
 
 function createRequestId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -74,6 +80,8 @@ app.use('/api/matches', matchesRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/ratings', ratingsRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/partners', partnersRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date(), request_id: req.requestId });
@@ -119,36 +127,63 @@ io.on('connection', (socket) => {
     socket.join(`conn_${connectionId}`);
   });
 
-  socket.on('send_message', ({ connection_id, content }) => {
+  socket.on('join_venue_availability', ({ venue_id, date }) => {
+    if (!venue_id) return;
+    socket.join(getVenueRoom(venue_id));
+    if (date) {
+      socket.join(getVenueDateRoom(venue_id, date));
+    }
+  });
+
+  socket.on('leave_venue_availability', ({ venue_id, date }) => {
+    if (!venue_id) return;
+    socket.leave(getVenueRoom(venue_id));
+    if (date) {
+      socket.leave(getVenueDateRoom(venue_id, date));
+    }
+  });
+
+  socket.on('send_message', async ({ connection_id, content }) => {
     if (!connection_id || !content?.trim()) return;
 
-    const db = getDB();
-    const conn = db.prepare(
-      'SELECT * FROM connections WHERE id = ? AND (requester_id = ? OR addressee_id = ?) AND status = ?'
-    ).get(connection_id, userId, userId, 'accepted');
-
-    if (!conn) return;
-
-    const result = db.prepare(
-      'INSERT INTO messages (connection_id, sender_id, content) VALUES (?, ?, ?)'
-    ).run(connection_id, userId, content.trim());
-
-    const message = db.prepare(`
-      SELECT m.*, u.name as sender_name, u.avatar as sender_avatar
-      FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.id = ?
-    `).get(result.lastInsertRowid);
-
-    // Broadcast to all members in the room.
-    io.to(`conn_${connection_id}`).emit('new_message', message);
-
-    // Push a lightweight notification if partner is online.
-    const partnerId = conn.requester_id === userId ? conn.addressee_id : conn.requester_id;
-    const partnerSocket = userSockets.get(partnerId);
-    if (partnerSocket) {
-      io.to(partnerSocket).emit('message_notification', {
-        connection_id,
-        message,
+    try {
+      const conn = await Connection.findOne({
+        where: {
+          id: connection_id,
+          status: 'accepted'
+        }
       });
+
+      if (!conn || (conn.requester_id !== userId && conn.addressee_id !== userId)) {
+        return; // Not authorized or connection not accepted
+      }
+
+      const newMessage = await Message.create({
+        connection_id,
+        sender_id: userId,
+        content: content.trim()
+      });
+
+      // Fetch with sender include
+      const messageWithSender = await Message.findOne({
+        where: { id: newMessage.id },
+        include: [{ model: User, as: 'Sender', attributes: ['name', 'avatar'] }]
+      });
+
+      // Broadcast to all members in the room.
+      io.to(`conn_${connection_id}`).emit('new_message', messageWithSender);
+
+      // Push a lightweight notification if partner is online.
+      const partnerId = conn.requester_id === userId ? conn.addressee_id : conn.requester_id;
+      const partnerSocket = userSockets.get(partnerId);
+      if (partnerSocket) {
+        io.to(partnerSocket).emit('message_notification', {
+          connection_id,
+          message: messageWithSender,
+        });
+      }
+    } catch (err) {
+      console.error('[socket] Error sending message:', err);
     }
   });
 
@@ -162,8 +197,20 @@ io.on('connection', (socket) => {
   });
 });
 
-// Initialize DB
-getDB();
+// Initialize DB and sync models
+sequelize.authenticate()
+  .then(() => {
+    console.log('[startup] Connecting and syncing models to PostgreSQL...');
+    return sequelize.sync({ alter: true }); // Syncs schemas without dropping
+  })
+  .then(async () => {
+    await seedDatabase();
+    console.log('[startup] ✅ PostgreSQL Models synchronized and seeded.');
+    
+    // Initialize background workers
+    SyncWorker.init();
+  })
+  .catch(err => console.error('[startup] ❌ Error syncing models:', err));
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
@@ -177,6 +224,6 @@ server.listen(PORT, () => {
   }
 
   console.log('[startup] Socket.io ready');
-  console.log('[startup] Database: SQLite');
+  console.log('[startup] Database: PostgreSQL');
   console.log('[startup] Request logs enabled with morgan\n');
 });

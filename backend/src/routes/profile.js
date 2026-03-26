@@ -1,7 +1,8 @@
 const express = require('express');
 const path = require('path');
 const multer = require('multer');
-const { getDB } = require('../database');
+const { User, Rating, Connection, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -16,71 +17,88 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // GET /api/profile/:id
-router.get('/:id', auth, (req, res) => {
-  const db = getDB();
-  const user = db.prepare(`
-    SELECT id, name, email, elo, category, self_category, position, paddle_brand,
-           preferred_partner, bio, wins, losses, avatar, favorite_court_id, created_at
-    FROM users WHERE id = ?
-  `).get(req.params.id);
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id, {
+      attributes: { exclude: ['password'] }
+    });
 
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-  // Average rating
-  const ratingData = db.prepare(`
-    SELECT AVG(score) as avg_score, COUNT(*) as total_ratings
-    FROM ratings WHERE rated_id = ?
-  `).get(req.params.id);
+    // Average rating
+    const ratingData = await Rating.findOne({
+      where: { rated_id: req.params.id },
+      attributes: [
+        [sequelize.fn('AVG', sequelize.col('score')), 'avg_score'],
+        [sequelize.fn('COUNT', sequelize.col('*')), 'total_ratings']
+      ],
+      raw: true
+    });
 
-  // Connection status with requester
-  const connection = db.prepare(`
-    SELECT id, status, requester_id FROM connections
-    WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)
-  `).get(req.user.id, req.params.id, req.params.id, req.user.id);
+    // Connection status with requester
+    const connection = await Connection.findOne({
+      where: {
+        [Op.or]: [
+          { requester_id: req.user.id, addressee_id: req.params.id },
+          { requester_id: req.params.id, addressee_id: req.user.id }
+        ]
+      }
+    });
 
-  res.json({
-    user: {
-      ...user,
-      avg_rating: ratingData.avg_score ? Math.round(ratingData.avg_score * 10) / 10 : null,
-      total_ratings: ratingData.total_ratings,
-    },
-    connection: connection || null,
-  });
+    res.json({
+      user: {
+        ...user.toJSON(),
+        avg_rating: ratingData.avg_score ? Math.round(ratingData.avg_score * 10) / 10 : null,
+        total_ratings: parseInt(ratingData.total_ratings || 0),
+      },
+      connection: connection || null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // PUT /api/profile
-router.put('/', auth, (req, res) => {
-  const { name, position, paddle_brand, favorite_court_id, preferred_partner, bio } = req.body;
-  const db = getDB();
+router.put('/', auth, async (req, res) => {
+  try {
+    const { name, position, paddle_brand, favorite_court_id, preferred_partner, bio } = req.body;
 
-  db.prepare(`
-    UPDATE users SET
-      name = COALESCE(?, name),
-      position = COALESCE(?, position),
-      paddle_brand = COALESCE(?, paddle_brand),
-      favorite_court_id = COALESCE(?, favorite_court_id),
-      preferred_partner = COALESCE(?, preferred_partner),
-      bio = COALESCE(?, bio)
-    WHERE id = ?
-  `).run(name, position, paddle_brand, favorite_court_id, preferred_partner, bio, req.user.id);
+    // Filter undefined values
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (position !== undefined) updates.position = position;
+    if (paddle_brand !== undefined) updates.paddle_brand = paddle_brand;
+    if (favorite_court_id !== undefined) updates.favorite_court_id = favorite_court_id;
+    if (preferred_partner !== undefined) updates.preferred_partner = preferred_partner;
+    if (bio !== undefined) updates.bio = bio;
 
-  const user = db.prepare(`
-    SELECT id, name, email, elo, category, position, paddle_brand, preferred_partner, bio, wins, losses, avatar, favorite_court_id
-    FROM users WHERE id = ?
-  `).get(req.user.id);
+    await User.update(updates, { where: { id: req.user.id } });
 
-  res.json({ user });
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] }
+    });
+
+    res.json({ user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // POST /api/profile/avatar
-router.post('/avatar', auth, upload.single('avatar'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No se envió ninguna imagen' });
+router.post('/avatar', auth, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se envió ninguna imagen' });
 
-  const avatarUrl = `/uploads/${req.file.filename}`;
-  const db = getDB();
-  db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatarUrl, req.user.id);
+    const avatarUrl = `/uploads/${req.file.filename}`;
+    await User.update({ avatar: avatarUrl }, { where: { id: req.user.id } });
 
-  res.json({ avatar: avatarUrl });
+    res.json({ avatar: avatarUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 module.exports = router;

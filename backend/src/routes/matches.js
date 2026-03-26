@@ -1,123 +1,382 @@
 const express = require('express');
-const { getDB } = require('../database');
+const { Op } = require('sequelize');
+const { Match, Slot, Court, Venue, User, MatchPlayer } = require('../models');
 const auth = require('../middleware/auth');
 const { notifyCourtByWhatsApp, notifyAdminWhatsApp } = require('../services/notifications');
+const { calculateStarsEarned, categoryFromStars } = require('../services/elo');
+const { dateToStr } = require('../services/availability');
+const { emitVenueAvailabilityUpdate } = require('../services/realtime');
 
 const router = express.Router();
 
-function getMatchWithDetails(db, matchId) {
-  const match = db.prepare(`
-    SELECT m.*, s.date, s.time, s.duration, s.price,
-           c.id as court_id, c.name as court_name, c.address as court_address,
-           c.whatsapp as court_whatsapp,
-           u.name as creator_name, u.elo as creator_elo, u.category as creator_category, u.avatar as creator_avatar
-    FROM matches m
-    JOIN slots s ON m.slot_id = s.id
-    JOIN courts c ON s.court_id = c.id
-    JOIN users u ON m.creator_id = u.id
-    WHERE m.id = ?
-  `).get(matchId);
+function normalizeCategoryRule({ open_category, min_category_tier, max_category_tier, creatorTier }) {
+  const isOpenCategory = open_category !== undefined
+    ? Boolean(open_category)
+    : !(min_category_tier || max_category_tier);
 
-  if (!match) return null;
+  if (isOpenCategory) {
+    return {
+      open_category: true,
+      min_category_tier: 1,
+      max_category_tier: 7,
+    };
+  }
 
-  const players = db.prepare(`
-    SELECT u.id, u.name, u.elo, u.category, u.position, u.avatar, mp.team, mp.joined_at
-    FROM match_players mp
-    JOIN users u ON mp.user_id = u.id
-    WHERE mp.match_id = ?
-    ORDER BY mp.joined_at
-  `).all(matchId);
+  const normalizedMin = Math.min(7, Math.max(1, Number(min_category_tier) || creatorTier || 7));
+  const normalizedMax = Math.min(7, Math.max(1, Number(max_category_tier) || creatorTier || 7));
 
-  return { ...match, players };
+  return {
+    open_category: false,
+    min_category_tier: Math.min(normalizedMin, normalizedMax),
+    max_category_tier: Math.max(normalizedMin, normalizedMax),
+  };
+}
+
+function isUserAllowedByCategoryRule(match, userTier) {
+  if (match.open_category) return true;
+  return userTier >= match.min_category_tier && userTier <= match.max_category_tier;
+}
+
+async function canReopenSlot(slotId) {
+  const slot = await Slot.findByPk(slotId);
+  return Boolean(slot) && !slot.booked_externally;
+}
+
+async function getMatchWithDetails(matchId) {
+  return await Match.findByPk(matchId, {
+    include: [
+      {
+        model: Slot,
+        include: [{
+          model: Court,
+          include: [{ model: Venue, attributes: ['id', 'name', 'address', 'image'] }]
+        }]
+      },
+      {
+        model: User,
+        as: 'Creator',
+        attributes: ['id', 'name', 'stars', 'category_tier', 'avatar']
+      },
+      {
+        model: MatchPlayer,
+        as: 'Players',
+        include: [{
+          model: User,
+          as: 'User',
+          attributes: ['id', 'name', 'stars', 'category_tier', 'position', 'avatar']
+        }]
+      }
+    ]
+  });
+}
+
+async function emitSlotAvailabilityUpdate(slotId, reason) {
+  const slot = await Slot.findByPk(slotId, {
+    include: [{ model: Court, attributes: ['venue_id'] }]
+  });
+  if (!slot?.Court?.venue_id) return;
+
+  emitVenueAvailabilityUpdate({
+    venueId: slot.Court.venue_id,
+    date: slot.date,
+    reason,
+  });
 }
 
 // GET /api/matches - listar partidos abiertos
-router.get('/', auth, (req, res) => {
-  const db = getDB();
-  const { date, category, court_id } = req.query;
+router.get('/', auth, async (req, res) => {
+  try {
+    const { date, court_id } = req.query;
 
-  let conditions = [`m.status = 'open'`, `s.date >= date('now')`];
-  const params = [];
+    const whereRules = { status: 'open' };
+    const slotWhereRules = {};
 
-  if (date) { conditions.push('s.date = ?'); params.push(date); }
-  if (court_id) { conditions.push('s.court_id = ?'); params.push(court_id); }
+    // Get today at 00:00 for the minimum date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayIso = dateToStr(today);
 
-  const matches = db.prepare(`
-    SELECT m.id, m.title, m.description, m.status, m.min_players, m.max_players, m.created_at,
-           s.date, s.time, s.duration, s.price,
-           c.id as court_id, c.name as court_name, c.address as court_address,
-           u.name as creator_name, u.elo as creator_elo, u.category as creator_category, u.avatar as creator_avatar,
-           (SELECT COUNT(*) FROM match_players mp WHERE mp.match_id = m.id) as player_count
-    FROM matches m
-    JOIN slots s ON m.slot_id = s.id
-    JOIN courts c ON s.court_id = c.id
-    JOIN users u ON m.creator_id = u.id
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY s.date, s.time
-  `).all(...params);
+    if (date) {
+      slotWhereRules.date = date;
+    } else {
+      slotWhereRules.date = { [Op.gte]: todayIso };
+    }
 
-  // Filter by category if needed (based on avg player elo)
-  res.json({ matches });
+    if (court_id) {
+      slotWhereRules.court_id = court_id;
+    }
+
+    const matches = await Match.findAll({
+      where: whereRules,
+      include: [
+        {
+          model: Slot,
+          where: slotWhereRules,
+          include: [{ model: Court }]
+        },
+        {
+          model: User,
+          as: 'Creator',
+          attributes: ['name', 'stars', 'category_tier', 'avatar']
+        },
+        {
+          model: MatchPlayer,
+          as: 'Players'
+        }
+      ],
+      order: [
+        [Slot, 'date', 'ASC'],
+        [Slot, 'time', 'ASC']
+      ]
+    });
+
+    const formattedMatches = matches.map(m => {
+      const matchData = m.toJSON();
+      return {
+        id: matchData.id,
+        title: matchData.title,
+        description: matchData.description,
+        status: matchData.status,
+        min_players: matchData.min_players,
+        max_players: matchData.max_players,
+        open_category: matchData.open_category,
+        min_category_tier: matchData.min_category_tier,
+        max_category_tier: matchData.max_category_tier,
+        created_at: matchData.createdAt,
+        date: matchData.Slot.date,
+        time: matchData.Slot.time,
+        duration: matchData.Slot.duration,
+        price: matchData.Slot.price,
+        court_id: matchData.Slot.Court.id,
+        court_name: matchData.Slot.Court.name,
+        court_address: matchData.Slot.Court.address,
+        creator_name: matchData.Creator.name,
+        creator_category: matchData.Creator.category_tier,
+        creator_avatar: matchData.Creator.avatar,
+        player_count: matchData.Players.length
+      };
+    });
+
+    res.json({ matches: formattedMatches });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching matches' });
+  }
 });
 
 // GET /api/matches/my - mis partidos
-router.get('/my', auth, (req, res) => {
-  const db = getDB();
-  const matches = db.prepare(`
-    SELECT m.id, m.title, m.status, m.created_at,
-           s.date, s.time, s.duration, s.price,
-           c.name as court_name, c.address as court_address,
-           (SELECT COUNT(*) FROM match_players mp WHERE mp.match_id = m.id) as player_count
-    FROM matches m
-    JOIN slots s ON m.slot_id = s.id
-    JOIN courts c ON s.court_id = c.id
-    WHERE m.id IN (SELECT match_id FROM match_players WHERE user_id = ?)
-       OR m.creator_id = ?
-    ORDER BY s.date DESC, s.time DESC
-  `).all(req.user.id, req.user.id);
+router.get('/my', auth, async (req, res) => {
+  try {
+    const myMatchIds = await MatchPlayer.findAll({
+      where: { user_id: req.user.id },
+      attributes: ['match_id']
+    });
 
-  res.json({ matches });
+    const matchIds = myMatchIds.map(mp => mp.match_id);
+
+    const matches = await Match.findAll({
+      where: {
+        [Op.or]: [
+          { id: { [Op.in]: matchIds } },
+          { creator_id: req.user.id }
+        ]
+      },
+      include: [
+        { model: Slot, include: [{ model: Court }] },
+        { model: MatchPlayer, as: 'Players' } // Needed for player_count calculation
+      ],
+      order: [
+        [Slot, 'date', 'DESC'],
+        [Slot, 'time', 'DESC']
+      ]
+    });
+
+    const formattedMatches = matches.map(m => {
+      const matchData = m.toJSON();
+      return {
+        id: matchData.id,
+        title: matchData.title,
+        status: matchData.status,
+        open_category: matchData.open_category,
+        min_category_tier: matchData.min_category_tier,
+        max_category_tier: matchData.max_category_tier,
+        created_at: matchData.createdAt,
+        date: matchData.Slot?.date,
+        time: matchData.Slot?.time,
+        duration: matchData.Slot?.duration,
+        price: matchData.Slot?.price,
+        court_name: matchData.Slot?.Court?.name,
+        court_address: matchData.Slot?.Court?.address,
+        player_count: matchData.Players.length
+      };
+    });
+
+    res.json({ matches: formattedMatches });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching my matches' });
+  }
 });
 
 // GET /api/matches/:id
-router.get('/:id', auth, (req, res) => {
-  const db = getDB();
-  const match = getMatchWithDetails(db, req.params.id);
-  if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
-  res.json({ match });
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const match = await getMatchWithDetails(req.params.id);
+    if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+
+    const matchData = match.toJSON();
+
+    // Format response to match front-end expectations
+    const formattedMatch = {
+      ...matchData,
+      date: matchData.Slot.date,
+      time: matchData.Slot.time,
+      duration: matchData.Slot.duration,
+      price: matchData.Slot.price,
+      open_category: matchData.open_category,
+      min_category_tier: matchData.min_category_tier,
+      max_category_tier: matchData.max_category_tier,
+      court_id: matchData.Slot.Court.id,
+      court_name: matchData.Slot.Court.name,
+      venue_id: matchData.Slot.Court.Venue?.id,
+      venue_name: matchData.Slot.Court.Venue?.name,
+      venue_address: matchData.Slot.Court.Venue?.address,
+      venue_image: matchData.Slot.Court.Venue?.image,
+      court_address: matchData.Slot.Court.address,
+      court_whatsapp: matchData.Slot.Court.whatsapp,
+      creator_name: matchData.Creator.name,
+      creator_category: matchData.Creator.category_tier,
+      creator_avatar: matchData.Creator.avatar,
+      players: matchData.Players.map(p => ({
+        id: p.User.id,
+        name: p.User.name,
+        stars: p.User.stars,
+        category: p.User.category_tier,
+        position: p.User.position,
+        avatar: p.User.avatar,
+        team: p.team,
+        joined_at: p.createdAt
+      }))
+    };
+
+    res.json({ match: formattedMatch });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching match details' });
+  }
 });
 
 // POST /api/matches - crear partido
-router.post('/', auth, (req, res) => {
+router.post('/', auth, async (req, res) => {
   try {
-    const { slot_id, title, description, min_players = 3, max_players = 4 } = req.body;
+    const { slot_id, venue_id, date, time, title, description, min_players = 3, max_players = 4, open_category, min_category_tier, max_category_tier } = req.body;
 
-    if (!slot_id) return res.status(400).json({ error: 'Turno requerido' });
+    let resolvedSlotId = slot_id;
 
-    const db = getDB();
+    if (!resolvedSlotId) {
+      if (!venue_id || !date || !time) {
+        return res.status(400).json({ error: 'Turno requerido' });
+      }
 
-    // Verificar slot disponible
-    const slot = db.prepare('SELECT * FROM slots WHERE id = ? AND is_available = 1').get(slot_id);
+      const candidateSlots = await Slot.findAll({
+        where: {
+          date,
+          time,
+          is_available: true
+        },
+        include: [{
+          model: Court,
+          where: { venue_id }
+        }],
+        order: [['id', 'ASC']]
+      });
+
+      if (candidateSlots.length === 0) {
+        return res.status(400).json({ error: 'No hay turnos disponibles para esa sede y horario' });
+      }
+
+      const candidateIds = candidateSlots.map((candidateSlot) => candidateSlot.id);
+      const openMatchCounts = await Match.count({
+        where: {
+          slot_id: { [Op.in]: candidateIds },
+          status: 'open'
+        },
+        group: ['slot_id']
+      });
+
+      const countsBySlotId = new Map();
+      if (Array.isArray(openMatchCounts)) {
+        openMatchCounts.forEach((entry) => {
+          countsBySlotId.set(Number(entry.slot_id), Number(entry.count));
+        });
+      }
+
+      candidateSlots.sort((a, b) => {
+        const aCount = countsBySlotId.get(a.id) || 0;
+        const bCount = countsBySlotId.get(b.id) || 0;
+        if (aCount !== bCount) return aCount - bCount;
+        return a.id - b.id;
+      });
+
+      resolvedSlotId = candidateSlots[0].id;
+    }
+
+    const slot = await Slot.findOne({ where: { id: resolvedSlotId, is_available: true } });
     if (!slot) return res.status(400).json({ error: 'El turno no está disponible' });
 
-    // Verificar que no haya partido completo en ese slot
-    const existingFull = db.prepare(`
-      SELECT m.id FROM matches m WHERE m.slot_id = ? AND m.status = 'reserved'
-    `).get(slot_id);
+    const existingFull = await Match.findOne({ where: { slot_id: resolvedSlotId, status: 'reserved' } });
     if (existingFull) return res.status(400).json({ error: 'Ese turno ya fue reservado' });
 
-    const result = db.prepare(`
-      INSERT INTO matches (creator_id, slot_id, title, description, min_players, max_players)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(req.user.id, slot_id, title, description, min_players, max_players);
+    const categoryRule = normalizeCategoryRule({
+      open_category,
+      min_category_tier,
+      max_category_tier,
+      creatorTier: req.user.category_tier,
+    });
 
-    const matchId = result.lastInsertRowid;
+    const match = await Match.create({
+      creator_id: req.user.id,
+      slot_id: resolvedSlotId,
+      title,
+      description,
+      min_players,
+      max_players,
+      open_category: categoryRule.open_category,
+      min_category_tier: categoryRule.min_category_tier,
+      max_category_tier: categoryRule.max_category_tier,
+      status: 'open'
+    });
 
     // Creador se une automáticamente
-    db.prepare('INSERT INTO match_players (match_id, user_id) VALUES (?, ?)').run(matchId, req.user.id);
+    await MatchPlayer.create({
+      match_id: match.id,
+      user_id: req.user.id
+    });
 
-    const match = getMatchWithDetails(db, matchId);
-    res.status(201).json({ match });
+    const fullMatch = await getMatchWithDetails(match.id);
+
+    // Formatting logic...
+    const matchData = fullMatch.toJSON();
+    const formattedMatch = {
+      ...matchData,
+      date: matchData.Slot.date,
+      time: matchData.Slot.time,
+      duration: matchData.Slot.duration,
+      price: matchData.Slot.price,
+      open_category: matchData.open_category,
+      min_category_tier: matchData.min_category_tier,
+      max_category_tier: matchData.max_category_tier,
+      court_id: matchData.Slot.Court.id,
+      court_name: matchData.Slot.Court.name,
+      players: matchData.Players.map(p => ({
+        id: p.User.id,
+        name: p.User.name,
+        category: p.User.category_tier,
+      }))
+    };
+
+    await emitSlotAvailabilityUpdate(resolvedSlotId, 'match_created');
+    res.status(201).json({ match: formattedMatch });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error creando partido' });
@@ -127,52 +386,81 @@ router.post('/', auth, (req, res) => {
 // POST /api/matches/:id/join - unirse a partido
 router.post('/:id/join', auth, async (req, res) => {
   try {
-    const db = getDB();
-    const match = db.prepare(`
-      SELECT m.*, s.date, s.time, s.duration, s.price, s.court_id,
-             c.name as court_name, c.whatsapp as court_whatsapp,
-             c.address as court_address
-      FROM matches m
-      JOIN slots s ON m.slot_id = s.id
-      JOIN courts c ON s.court_id = c.id
-      WHERE m.id = ?
-    `).get(req.params.id);
+    const match = await getMatchWithDetails(req.params.id);
 
     if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
     if (match.status !== 'open') return res.status(400).json({ error: 'El partido no está disponible' });
 
-    const existing = db.prepare('SELECT id FROM match_players WHERE match_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!isUserAllowedByCategoryRule(match, req.user.category_tier)) {
+      return res.status(400).json({ error: 'Tu categoria no entra en el rango permitido para este partido' });
+    }
+
+    const existing = await MatchPlayer.findOne({ where: { match_id: req.params.id, user_id: req.user.id } });
     if (existing) return res.status(400).json({ error: 'Ya estás en este partido' });
 
-    const playerCount = db.prepare('SELECT COUNT(*) as c FROM match_players WHERE match_id = ?').get(req.params.id).c;
+    const playerCount = match.Players.length;
     if (playerCount >= match.max_players) return res.status(400).json({ error: 'El partido está completo' });
 
-    db.prepare('INSERT INTO match_players (match_id, user_id) VALUES (?, ?)').run(req.params.id, req.user.id);
+    await MatchPlayer.create({ match_id: req.params.id, user_id: req.user.id });
 
     const newCount = playerCount + 1;
 
     // Si alcanza el mínimo → reservar turno y notificar
-    if (newCount >= match.min_players) {
-      db.prepare(`UPDATE matches SET status = 'reserved' WHERE id = ?`).run(req.params.id);
-      db.prepare(`UPDATE slots SET is_available = 0 WHERE id = ?`).run(match.slot_id);
+    if (newCount >= match.max_players) {
+      await match.update({ status: 'reserved' });
+      const slot = await Slot.findByPk(match.slot_id);
+      await slot.update({ is_available: false });
 
-      // Obtener todos los jugadores para la notificación
-      const players = db.prepare(`
-        SELECT u.name, u.category FROM match_players mp
-        JOIN users u ON mp.user_id = u.id
-        WHERE mp.match_id = ?
-      `).all(req.params.id);
+      await Match.update(
+        { status: 'cancelled' },
+        {
+          where: {
+            slot_id: match.slot_id,
+            status: 'open',
+            id: { [Op.ne]: match.id }
+          }
+        }
+      );
 
-      const courtInfo = { name: match.court_name, whatsapp: match.court_whatsapp, address: match.court_address };
-      const slotInfo = { date: match.date, time: match.time, duration: match.duration, price: match.price };
+      // Build simplified structures for notifications
+      const courtInfo = { name: match.Slot.Court.name, whatsapp: match.Slot.Court.whatsapp, address: match.Slot.Court.address };
+      const slotInfo = { date: match.Slot.date, time: match.Slot.time, duration: match.Slot.duration, price: match.Slot.price };
+
+      const newPlayersList = await MatchPlayer.findAll({
+        where: { match_id: req.params.id },
+        include: [{ model: User, as: 'User' }]
+      });
+
+      const playersStruct = newPlayersList.map(mp => ({ name: mp.User.name, category: mp.User.category_tier }));
 
       // Notificar a la cancha y al admin
-      notifyCourtByWhatsApp(match, slotInfo, courtInfo, players).catch(console.error);
-      notifyAdminWhatsApp(match, slotInfo, courtInfo, players).catch(console.error);
+      notifyCourtByWhatsApp(match, slotInfo, courtInfo, playersStruct).catch(console.error);
+      notifyAdminWhatsApp(match, slotInfo, courtInfo, playersStruct).catch(console.error);
     }
 
-    const updatedMatch = getMatchWithDetails(db, req.params.id);
-    res.json({ match: updatedMatch });
+    const updatedMatch = await getMatchWithDetails(req.params.id);
+
+    // Very Basic mapping for response
+    const matchData = updatedMatch.toJSON();
+    const formattedMatch = {
+      ...matchData,
+      date: matchData.Slot.date,
+      time: matchData.Slot.time,
+      duration: matchData.Slot.duration,
+      price: matchData.Slot.price,
+      open_category: matchData.open_category,
+      min_category_tier: matchData.min_category_tier,
+      max_category_tier: matchData.max_category_tier,
+      court_name: matchData.Slot.Court.name,
+      players: matchData.Players.map(p => ({
+        id: p.User.id,
+        name: p.User.name,
+        category: p.User.category_tier,
+      }))
+    };
+
+    await emitSlotAvailabilityUpdate(match.slot_id, newCount >= match.max_players ? 'slot_reserved' : 'match_joined');
+    res.json({ match: formattedMatch });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error uniéndose al partido' });
@@ -180,35 +468,95 @@ router.post('/:id/join', auth, async (req, res) => {
 });
 
 // DELETE /api/matches/:id/leave - salir del partido
-router.delete('/:id/leave', auth, (req, res) => {
-  const db = getDB();
-  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(req.params.id);
-  if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
-  if (match.status === 'completed') return res.status(400).json({ error: 'El partido ya finalizó' });
+router.delete('/:id/leave', auth, async (req, res) => {
+  try {
+    const match = await Match.findByPk(req.params.id);
+    if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+    if (match.status === 'completed') return res.status(400).json({ error: 'El partido ya finalizó' });
 
-  db.prepare('DELETE FROM match_players WHERE match_id = ? AND user_id = ?').run(req.params.id, req.user.id);
+    await MatchPlayer.destroy({ where: { match_id: req.params.id, user_id: req.user.id } });
 
-  const remaining = db.prepare('SELECT COUNT(*) as c FROM match_players WHERE match_id = ?').get(req.params.id).c;
+    const remaining = await MatchPlayer.count({ where: { match_id: req.params.id } });
 
-  if (remaining === 0) {
-    db.prepare(`UPDATE matches SET status = 'cancelled' WHERE id = ?`).run(req.params.id);
-    db.prepare(`UPDATE slots SET is_available = 1 WHERE id = ?`).run(match.slot_id);
-  } else if (match.status === 'reserved') {
-    db.prepare(`UPDATE matches SET status = 'open' WHERE id = ?`).run(req.params.id);
-    db.prepare(`UPDATE slots SET is_available = 1 WHERE id = ?`).run(match.slot_id);
+    if (remaining === 0) {
+      await match.update({ status: 'cancelled' });
+      if (await canReopenSlot(match.slot_id)) {
+        await Slot.update({ is_available: true }, { where: { id: match.slot_id } });
+      }
+    } else if (match.status === 'reserved') {
+      await match.update({ status: 'open' });
+      if (await canReopenSlot(match.slot_id)) {
+        await Slot.update({ is_available: true }, { where: { id: match.slot_id } });
+      }
+    }
+
+    await emitSlotAvailabilityUpdate(match.slot_id, 'match_left');
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error abandonando partido' });
   }
-
-  res.json({ success: true });
 });
 
 // PUT /api/matches/:id/complete - marcar como completado
-router.put('/:id/complete', auth, (req, res) => {
-  const db = getDB();
-  const match = db.prepare('SELECT * FROM matches WHERE id = ? AND creator_id = ?').get(req.params.id, req.user.id);
-  if (!match) return res.status(403).json({ error: 'Solo el creador puede finalizar el partido' });
+// THIS NOW INCORPORATES STAR MATHEMATICS for the Ranking System!
+router.put('/:id/complete', auth, async (req, res) => {
+  try {
+    const { winners } = req.body; // array of user_ids who won
+    if (!winners || !Array.isArray(winners)) {
+      return res.status(400).json({ error: 'Debe proveer array winners con IDs de los ganadores' });
+    }
 
-  db.prepare(`UPDATE matches SET status = 'completed' WHERE id = ?`).run(req.params.id);
-  res.json({ success: true });
+    const match = await getMatchWithDetails(req.params.id);
+    if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+    if (match.creator_id !== req.user.id) return res.status(403).json({ error: 'Solo el creador puede finalizar el partido' });
+    if (match.status === 'completed') return res.status(400).json({ error: 'El partido ya fue finalizado' });
+
+    // Separate players into winners and losers to calculate avg category
+    const players = match.Players;
+    const winningPlayers = players.filter(p => winners.includes(p.User.id));
+    const losingPlayers = players.filter(p => !winners.includes(p.User.id));
+
+    // Calculate Average Tiers per team (Remember 7 is beginners, 1 is pro)
+    const winningAvgTier = winningPlayers.reduce((acc, p) => acc + p.User.category_tier, 0) / (winningPlayers.length || 1);
+    const losingAvgTier = losingPlayers.reduce((acc, p) => acc + p.User.category_tier, 0) / (losingPlayers.length || 1);
+
+    // Apply Star Rating Updates for each player
+    for (const player of players) {
+      const isWinner = winners.includes(player.User.id);
+      const resultStr = isWinner ? 'win' : 'loss';
+
+      let starsEarned = 0;
+      if (isWinner) {
+        starsEarned = calculateStarsEarned(winningAvgTier, losingAvgTier, 'win');
+      } else {
+        starsEarned = calculateStarsEarned(losingAvgTier, winningAvgTier, 'loss');
+      }
+
+      const user = await User.findByPk(player.User.id);
+      user.stars = Math.max(0, user.stars + starsEarned); // Cant go sub-zero
+      user.category_tier = categoryFromStars(user.stars); // Update category based on stars
+      user.matches_played += 1;
+
+      if (isWinner) user.wins += 1;
+      else user.losses += 1;
+
+      await user.save();
+
+      // Update MatchPlayer with result and stars earned
+      await MatchPlayer.update(
+        { result: resultStr, stars_earned: starsEarned },
+        { where: { id: player.id } }
+      );
+    }
+
+    await match.update({ status: 'completed' });
+
+    res.json({ success: true, message: 'Partido completado y estrellas calculadas exitosamente.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al finalizar el partido' });
+  }
 });
 
 module.exports = router;

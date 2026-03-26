@@ -1,132 +1,274 @@
 const express = require('express');
-const { getDB } = require('../database');
+const { Op } = require('sequelize');
+const { User, Connection, Rating, Message, sequelize } = require('../models');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
 // GET /api/social/players - buscar jugadores
-router.get('/players', auth, (req, res) => {
-  const db = getDB();
-  const { q, category, position } = req.query;
+router.get('/players', auth, async (req, res) => {
+  try {
+    const { q, category, position } = req.query;
 
-  let conditions = ['u.id != ?'];
-  const params = [req.user.id];
+    const whereParams = {
+      id: { [Op.ne]: req.user.id }
+    };
 
-  if (q) {
-    conditions.push('(u.name LIKE ? OR u.email LIKE ?)');
-    params.push(`%${q}%`, `%${q}%`);
+    if (q) {
+      whereParams[Op.or] = [
+        { name: { [Op.iLike]: `%${q}%` } },
+        { email: { [Op.iLike]: `%${q}%` } }
+      ];
+    }
+
+    if (category) {
+      // NOTE: `category` from the frontend might be "7ma" or an ID depending on how the frontend handles it now.
+      whereParams.category_tier = category;
+    }
+
+    if (position) {
+      whereParams.position = position;
+    }
+
+    // Since sorting and filtering by complex joined columns is hard in pure Sequelize
+    // without raw queries, we can pull the users, their connections and ratings, and map them
+
+    const playersRaw = await User.findAll({
+      where: whereParams,
+      attributes: ['id', 'name', 'stars', 'category_tier', 'position', 'paddle_brand', 'avatar', 'wins', 'losses'],
+      limit: 50,
+      order: [['stars', 'DESC']]
+    });
+
+    // Populate Connections and Ratings manually for the 50 items to keep it clean avoiding pure RAW SQL issues across dialects
+    const playersPromises = playersRaw.map(async (u) => {
+      const player = u.toJSON();
+
+      // Find average rating
+      const rating = await Rating.findOne({
+        where: { rated_id: player.id },
+        attributes: [[sequelize.fn('AVG', sequelize.col('score')), 'avg_score']],
+        raw: true
+      });
+      player.avg_rating = rating.avg_score ? Math.round(rating.avg_score * 10) / 10 : 0;
+
+      // Find Connection
+      const connection = await Connection.findOne({
+        where: {
+          [Op.or]: [
+            { requester_id: req.user.id, addressee_id: player.id },
+            { addressee_id: req.user.id, requester_id: player.id }
+          ]
+        }
+      });
+
+      if (connection) {
+        player.connection_id = connection.id;
+        player.connection_status = connection.status;
+        player.requester_id = connection.requester_id;
+      } else {
+        player.connection_id = null;
+        player.connection_status = null;
+        player.requester_id = null;
+      }
+
+      return player;
+    });
+
+    const players = await Promise.all(playersPromises);
+
+    res.json({ players });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-  if (category) { conditions.push('u.category = ?'); params.push(category); }
-  if (position) { conditions.push('u.position = ?'); params.push(position); }
-
-  const players = db.prepare(`
-    SELECT u.id, u.name, u.elo, u.category, u.position, u.paddle_brand, u.avatar, u.wins, u.losses,
-           COALESCE(r.avg_score, 0) as avg_rating,
-           c.id as connection_id, c.status as connection_status, c.requester_id
-    FROM users u
-    LEFT JOIN (SELECT rated_id, AVG(score) as avg_score FROM ratings GROUP BY rated_id) r ON r.rated_id = u.id
-    LEFT JOIN connections c ON (
-      (c.requester_id = ? AND c.addressee_id = u.id) OR
-      (c.addressee_id = ? AND c.requester_id = u.id)
-    )
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY u.elo DESC
-    LIMIT 50
-  `).all(req.user.id, req.user.id, ...params);
-
-  res.json({ players });
 });
 
 // POST /api/social/connect - enviar solicitud de conexión
-router.post('/connect', auth, (req, res) => {
-  const { addressee_id } = req.body;
-  if (!addressee_id) return res.status(400).json({ error: 'ID de usuario requerido' });
-  if (addressee_id == req.user.id) return res.status(400).json({ error: 'No puedes conectarte contigo mismo' });
+router.post('/connect', auth, async (req, res) => {
+  try {
+    const { addressee_id } = req.body;
+    if (!addressee_id) return res.status(400).json({ error: 'ID de usuario requerido' });
+    if (addressee_id == req.user.id) return res.status(400).json({ error: 'No puedes conectarte contigo mismo' });
 
-  const db = getDB();
-  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(addressee_id);
-  if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
+    const target = await User.findByPk(addressee_id);
+    if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-  const existing = db.prepare(`
-    SELECT * FROM connections
-    WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)
-  `).get(req.user.id, addressee_id, addressee_id, req.user.id);
+    const existing = await Connection.findOne({
+      where: {
+        [Op.or]: [
+          { requester_id: req.user.id, addressee_id },
+          { requester_id: addressee_id, addressee_id: req.user.id }
+        ]
+      }
+    });
 
-  if (existing) {
-    if (existing.status === 'accepted') return res.status(400).json({ error: 'Ya son compañeros' });
-    if (existing.status === 'pending') return res.status(400).json({ error: 'Solicitud ya enviada' });
+    if (existing) {
+      if (existing.status === 'accepted') return res.status(400).json({ error: 'Ya son compañeros' });
+      if (existing.status === 'pending') return res.status(400).json({ error: 'Solicitud ya enviada' });
+    }
+
+    const connection = await Connection.create({
+      requester_id: req.user.id,
+      addressee_id,
+      status: 'pending'
+    });
+
+    res.status(201).json({ connection });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-
-  const result = db.prepare(
-    'INSERT INTO connections (requester_id, addressee_id, status) VALUES (?, ?, ?)'
-  ).run(req.user.id, addressee_id, 'pending');
-
-  const connection = db.prepare('SELECT * FROM connections WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ connection });
 });
 
 // PUT /api/social/connect/:id - aceptar o rechazar
-router.put('/connect/:id', auth, (req, res) => {
-  const { action } = req.body; // 'accept' | 'reject'
-  if (!['accept', 'reject'].includes(action)) return res.status(400).json({ error: 'Acción inválida' });
+router.put('/connect/:id', auth, async (req, res) => {
+  try {
+    const { action } = req.body; // 'accept' | 'reject'
+    if (!['accept', 'reject'].includes(action)) return res.status(400).json({ error: 'Acción inválida' });
 
-  const db = getDB();
-  const connection = db.prepare('SELECT * FROM connections WHERE id = ? AND addressee_id = ?').get(req.params.id, req.user.id);
-  if (!connection) return res.status(404).json({ error: 'Solicitud no encontrada' });
-  if (connection.status !== 'pending') return res.status(400).json({ error: 'Solicitud ya procesada' });
+    const connection = await Connection.findOne({
+      where: { id: req.params.id, addressee_id: req.user.id }
+    });
 
-  const newStatus = action === 'accept' ? 'accepted' : 'rejected';
-  db.prepare('UPDATE connections SET status = ? WHERE id = ?').run(newStatus, req.params.id);
+    if (!connection) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    if (connection.status !== 'pending') return res.status(400).json({ error: 'Solicitud ya procesada' });
 
-  res.json({ success: true, status: newStatus });
+    const newStatus = action === 'accept' ? 'accepted' : 'rejected';
+    await connection.update({ status: newStatus });
+
+    res.json({ success: true, status: newStatus });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // DELETE /api/social/connect/:id - eliminar conexión
-router.delete('/connect/:id', auth, (req, res) => {
-  const db = getDB();
-  const connection = db.prepare(
-    'SELECT * FROM connections WHERE id = ? AND (requester_id = ? OR addressee_id = ?)'
-  ).get(req.params.id, req.user.id, req.user.id);
+router.delete('/connect/:id', auth, async (req, res) => {
+  try {
+    const connection = await Connection.findOne({
+      where: {
+        id: req.params.id,
+        [Op.or]: [
+          { requester_id: req.user.id },
+          { addressee_id: req.user.id }
+        ]
+      }
+    });
 
-  if (!connection) return res.status(404).json({ error: 'Conexión no encontrada' });
+    if (!connection) return res.status(404).json({ error: 'Conexión no encontrada' });
 
-  db.prepare('DELETE FROM connections WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+    await connection.destroy();
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // GET /api/social/connections - mis conexiones aceptadas
-router.get('/connections', auth, (req, res) => {
-  const db = getDB();
-  const connections = db.prepare(`
-    SELECT c.id, c.status, c.created_at,
-           CASE WHEN c.requester_id = ? THEN c.addressee_id ELSE c.requester_id END as partner_id,
-           u.name as partner_name, u.avatar as partner_avatar, u.elo as partner_elo,
-           u.category as partner_category, u.position as partner_position,
-           (SELECT content FROM messages WHERE connection_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
-           (SELECT created_at FROM messages WHERE connection_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
-           (SELECT COUNT(*) FROM messages WHERE connection_id = c.id AND sender_id != ? AND read_at IS NULL) as unread_count
-    FROM connections c
-    JOIN users u ON u.id = CASE WHEN c.requester_id = ? THEN c.addressee_id ELSE c.requester_id END
-    WHERE (c.requester_id = ? OR c.addressee_id = ?) AND c.status = 'accepted'
-    ORDER BY last_message_at DESC, c.created_at DESC
-  `).all(req.user.id, req.user.id, req.user.id, req.user.id, req.user.id);
+router.get('/connections', auth, async (req, res) => {
+  try {
+    const userConnections = await Connection.findAll({
+      where: {
+        [Op.or]: [
+          { requester_id: req.user.id },
+          { addressee_id: req.user.id }
+        ],
+        status: 'accepted'
+      },
+      order: [['createdAt', 'DESC']]
+    });
 
-  res.json({ connections });
+    const connectionsPromises = userConnections.map(async (c) => {
+      const connData = c.toJSON();
+
+      const partnerId = connData.requester_id === req.user.id ? connData.addressee_id : connData.requester_id;
+      const partner = await User.findByPk(partnerId, {
+        attributes: ['name', 'avatar', 'stars', 'category_tier', 'position']
+      });
+
+      const lastMessage = await Message.findOne({
+        where: { connection_id: c.id },
+        order: [['createdAt', 'DESC']]
+      });
+
+      const unreadCount = await Message.count({
+        where: {
+          connection_id: c.id,
+          sender_id: { [Op.ne]: req.user.id },
+          read_at: null
+        }
+      });
+
+      return {
+        id: connData.id,
+        status: connData.status,
+        created_at: connData.createdAt,
+        partner_id: partnerId,
+        partner_name: partner?.name,
+        partner_avatar: partner?.avatar,
+        partner_stars: partner?.stars,
+        partner_category: partner?.category_tier,
+        partner_position: partner?.position,
+        last_message: lastMessage?.content || null,
+        last_message_at: lastMessage?.createdAt || null,
+        unread_count: unreadCount
+      };
+    });
+
+    const unsortedConnections = await Promise.all(connectionsPromises);
+
+    // Sort by most recent message, or connection creation date
+    unsortedConnections.sort((a, b) => {
+      const dateA = a.last_message_at || a.created_at;
+      const dateB = b.last_message_at || b.created_at;
+      return new Date(dateB) - new Date(dateA);
+    });
+
+    res.json({ connections: unsortedConnections });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // GET /api/social/pending - solicitudes pendientes
-router.get('/pending', auth, (req, res) => {
-  const db = getDB();
-  const pending = db.prepare(`
-    SELECT c.id, c.created_at,
-           u.id as requester_id, u.name, u.avatar, u.elo, u.category
-    FROM connections c
-    JOIN users u ON u.id = c.requester_id
-    WHERE c.addressee_id = ? AND c.status = 'pending'
-    ORDER BY c.created_at DESC
-  `).all(req.user.id);
+router.get('/pending', auth, async (req, res) => {
+  try {
+    const pendingConnections = await Connection.findAll({
+      where: {
+        addressee_id: req.user.id,
+        status: 'pending'
+      },
+      include: [{
+        model: User,
+        as: 'Requester',
+        attributes: ['id', 'name', 'avatar', 'stars', 'category_tier']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
 
-  res.json({ pending });
+    const pending = pendingConnections.map(c => {
+      const connData = c.toJSON();
+      return {
+        id: connData.id,
+        created_at: connData.createdAt,
+        requester_id: connData.Requester.id,
+        name: connData.Requester.name,
+        avatar: connData.Requester.avatar,
+        stars: connData.Requester.stars,
+        category: connData.Requester.category_tier
+      };
+    });
+
+    res.json({ pending });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 module.exports = router;

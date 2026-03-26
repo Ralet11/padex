@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { profileAPI, socialAPI, ratingsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import { colors, spacing, radius } from '../../theme';
+import { getRankByTier } from '../../utils/rankings';
+import { screenPadding } from '../../theme/layout';
 
 export default function PlayerProfileScreen({ route, navigation }) {
   const { userId } = route.params;
   const { user: me } = useAuth();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState(null);
   const [connection, setConnection] = useState(null);
   const [ratings, setRatings] = useState([]);
@@ -64,20 +67,21 @@ export default function PlayerProfileScreen({ route, navigation }) {
   const isAccepted = connection?.status === 'accepted';
   const isPending = connection?.status === 'pending';
 
-  const CATEGORY_COLOR = {
-    principiante: '#6B7280', intermedio: '#3B82F6', avanzado: '#F59E0B', profesional: '#10B981',
-  };
-  const catColor = CATEGORY_COLOR[profile.category] || colors.primary;
+  const rank = getRankByTier(profile.category_tier);
+  const catColor = rank.starColor || colors.primary;
+  const floatingTabBarHeight = 60;
+  const floatingTabBarGap = 16;
+  const footerBottomOffset = floatingTabBarHeight + floatingTabBarGap + Math.max(insets.bottom, spacing.sm);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: footerBottomOffset + 32 }]} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={styles.hero}>
-          <Avatar name={profile.name} uri={profile.avatar} size={88} category={profile.category} />
+          <Avatar name={profile.name} uri={profile.avatar} size={88} category={rank.name} />
           <Text style={styles.name}>{profile.name}</Text>
           <View style={[styles.catBadge, { backgroundColor: catColor + '22' }]}>
-            <Text style={[styles.catText, { color: catColor }]}>{profile.category}</Text>
+            <Text style={[styles.catText, { color: catColor }]}>{rank.name}</Text>
           </View>
           {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
         </View>
@@ -85,8 +89,8 @@ export default function PlayerProfileScreen({ route, navigation }) {
         {/* Stats row */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>⭐ {profile.elo}</Text>
-            <Text style={styles.statLabel}>ELO</Text>
+            <Text style={[styles.statValue, { color: rank.starColor }]}>⭐ {profile.stars}</Text>
+            <Text style={styles.statLabel}>ESTRELLAS</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
@@ -145,7 +149,7 @@ export default function PlayerProfileScreen({ route, navigation }) {
 
       {/* Footer actions */}
       {!isMine && (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { marginBottom: footerBottomOffset }]}>
           {isAccepted && (
             <Button
               title="💬 Enviar mensaje"
@@ -158,8 +162,8 @@ export default function PlayerProfileScreen({ route, navigation }) {
           <Button
             title={
               !connection ? '+ Conectar' :
-              isPending ? (connection.requester_id === me.id ? '⏳ Enviada' : '✓ Aceptar') :
-              isAccepted ? '✓ Compañero' : '+ Conectar'
+                isPending ? (connection.requester_id === me.id ? '⏳ Enviada' : '✓ Aceptar') :
+                  isAccepted ? '✓ Compañero' : '+ Conectar'
             }
             onPress={!isPending || connection?.requester_id !== me.id ? handleConnect : undefined}
             loading={actionLoading}
@@ -175,7 +179,7 @@ export default function PlayerProfileScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing.md, paddingBottom: 20 },
+  scroll: { paddingHorizontal: screenPadding.horizontal, paddingVertical: spacing.md, paddingBottom: 20 },
   hero: { alignItems: 'center', paddingVertical: 20 },
   name: { fontSize: 24, fontWeight: '800', color: colors.text, marginTop: 14 },
   catBadge: { borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 5, marginTop: 8 },
@@ -209,7 +213,7 @@ const styles = StyleSheet.create({
   ratingStars: { fontSize: 14, color: colors.accent },
   ratingComment: { fontSize: 12, color: colors.textSecondary, marginTop: 2, maxWidth: 150, textAlign: 'right' },
   footer: {
-    flexDirection: 'row', padding: spacing.md, paddingBottom: 24,
+    flexDirection: 'row', paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.md, paddingBottom: 24,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg,
   },
 });

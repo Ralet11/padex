@@ -3,15 +3,16 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { BASE_URL } from '../services/api';
 import { colors } from '../theme';
 
-const CATEGORY_COLORS = {
-  principiante: '#6B7280',
-  intermedio: '#3B82F6',
-  avanzado: '#F59E0B',
-  profesional: '#10B981',
+import { RANK_CONFIG } from '../utils/rankings';
+
+const findTierByName = (name) => {
+  return Object.values(RANK_CONFIG).find(r => r.name === name)?.id || 7;
 };
 
 export default function Avatar({ uri, name, size = 44, category, showBadge = false, style }) {
-  const bg = category ? CATEGORY_COLORS[category] || colors.primary : colors.primary;
+  const tier = findTierByName(category);
+  const rank = RANK_CONFIG[tier] || RANK_CONFIG[7];
+  const bg = category ? rank.starColor : colors.primary;
   const initials = name
     ? name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
     : '?';
@@ -36,19 +37,14 @@ export default function Avatar({ uri, name, size = 44, category, showBadge = fal
       )}
       {showBadge && category && (
         <View style={[styles.badge, { backgroundColor: bg }]}>
-          <Text style={styles.badgeText}>{CATEGORY_LABELS[category] || ''}</Text>
+          <Text style={styles.badgeText}>{tier}</Text>
         </View>
       )}
     </View>
   );
 }
 
-const CATEGORY_LABELS = {
-  principiante: 'P',
-  intermedio: 'I',
-  avanzado: 'A',
-  profesional: 'PRO',
-};
+
 
 const styles = StyleSheet.create({
   wrapper: { position: 'relative' },

@@ -1,77 +1,164 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { getDB } = require('../database');
-const { eloFromSelfCategory, categoryFromElo } = require('../services/elo');
+const { User } = require('../models');
+const { starsFromSelfCategory, categoryFromStars } = require('../services/elo');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, self_category = 'principiante' } = req.body;
+    const {
+      email,
+      password,
+      confirmPassword,
+      name,
+      self_category = 'principiante',
+      paddle_brand,
+      position
+    } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    console.log(`[auth.register] [${req.requestId}] attempt`, {
+      email: normalizedEmail || null,
+      hasName: Boolean(name?.trim()),
+      hasPassword: Boolean(password),
+      hasConfirmPassword: typeof confirmPassword === 'string',
+      selfCategory: self_category,
+      position,
+    });
 
     if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Email, contraseña y nombre son requeridos' });
+      return res.status(400).json({ error: 'Email, contrasena y nombre son requeridos' });
     }
+
+    if (typeof confirmPassword === 'string' && password !== confirmPassword) {
+      console.warn(`[auth.register] [${req.requestId}] password confirmation mismatch`, {
+        email: normalizedEmail || null,
+      });
+      return res.status(400).json({ error: 'Las contrasenas no coinciden' });
+    }
+
     if (password.length < 6) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      return res.status(400).json({ error: 'La contrasena debe tener al menos 6 caracteres' });
     }
 
-    const db = getDB();
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
-    if (existing) return res.status(409).json({ error: 'El email ya está registrado' });
+    const existing = await User.findOne({ where: { email: normalizedEmail } });
+    if (existing) {
+      console.warn(`[auth.register] [${req.requestId}] email already registered`, {
+        email: normalizedEmail,
+      });
+      return res.status(409).json({ error: 'El email ya esta registrado' });
+    }
 
-    const hashed = await bcrypt.hash(password, 10);
-    const elo = eloFromSelfCategory(self_category);
-    const category = categoryFromElo(elo);
+    const stars = starsFromSelfCategory(self_category);
+    const category_tier = categoryFromStars(stars);
 
-    const result = db.prepare(`
-      INSERT INTO users (email, password, name, self_category, elo, category)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(email.toLowerCase(), hashed, name, self_category, elo, category);
+    const user = await User.create({
+      email: normalizedEmail,
+      password,
+      name,
+      self_category,
+      category_tier,
+      stars,
+      paddle_brand,
+      position
+    });
 
-    const user = db.prepare('SELECT id, email, name, elo, category, self_category, position, paddle_brand, bio, wins, losses, avatar, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    const safeUser = user.toJSON();
+    delete safeUser.password;
 
-    res.status(201).json({ token, user });
+    console.log(`[auth.register] [${req.requestId}] user created`, {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.status(201).json({ token, user: safeUser });
   } catch (err) {
+    console.error(`[auth.register] [${req.requestId}] error`);
     console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+    const normalizedEmail = email?.trim().toLowerCase();
 
-    const db = getDB();
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
-    if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
+    console.log(`[auth.login] [${req.requestId}] attempt`, {
+      email: normalizedEmail || null,
+      hasPassword: Boolean(password),
+    });
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contrasena requeridos' });
+    }
+
+    const user = await User.findOne({ where: { email: normalizedEmail } });
+    if (!user) {
+      console.warn(`[auth.login] [${req.requestId}] user not found`, {
+        email: normalizedEmail || null,
+      });
+      return res.status(401).json({ error: 'Credenciales invalidas' });
+    }
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Credenciales inválidas' });
+    if (!valid) {
+      console.warn(`[auth.login] [${req.requestId}] invalid password`, {
+        email: normalizedEmail,
+        userId: user.id,
+      });
+      return res.status(401).json({ error: 'Credenciales invalidas' });
+    }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
-    const { password: _, ...safeUser } = user;
+    const safeUser = user.toJSON();
+    delete safeUser.password;
+
+    console.log(`[auth.login] [${req.requestId}] login success`, {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
     res.json({ token, user: safeUser });
   } catch (err) {
+    console.error(`[auth.login] [${req.requestId}] error`);
     console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// GET /api/auth/me
-router.get('/me', auth, (req, res) => {
-  const db = getDB();
-  const user = db.prepare('SELECT id, email, name, elo, category, self_category, position, paddle_brand, preferred_partner, bio, wins, losses, avatar, favorite_court_id, created_at FROM users WHERE id = ?').get(req.user.id);
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-  res.json({ user });
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json({ user });
+  } catch (err) {
+    console.error(`[auth.me] [${req.requestId}] error`);
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 module.exports = router;

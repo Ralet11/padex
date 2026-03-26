@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
@@ -20,6 +20,7 @@ import MessagesScreen from '../screens/messages/MessagesScreen';
 import ChatScreen from '../screens/messages/ChatScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import LeaderboardScreen from '../screens/leaderboard/LeaderboardScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -29,14 +30,32 @@ const screenOptions = {
   headerTintColor: colors.text,
   headerTitleStyle: { fontWeight: '700', color: colors.text },
   headerShadowVisible: false,
-  contentStyle: { backgroundColor: colors.bg },
+  contentStyle: { backgroundColor: colors.background },
+};
+
+const authScreenOptions = {
+  headerShown: false,
+  animation: 'slide_from_right',
+  animationDuration: 260,
+  gestureEnabled: true,
+  fullScreenGestureEnabled: true,
+  contentStyle: { backgroundColor: colors.background },
+};
+
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: colors.background,
+    card: colors.background,
+  },
 };
 
 function HomeStack() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="HomeMain" component={HomeScreen} options={{ title: '🎾 Partidos' }} />
-      <Stack.Screen name="MatchDetail" component={MatchDetailScreen} options={{ title: 'Detalle del partido' }} />
+      <Stack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MatchDetail" component={MatchDetailScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -44,9 +63,9 @@ function HomeStack() {
 function SocialStack() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="SocialMain" component={SocialScreen} options={{ title: '👥 Social' }} />
+      <Stack.Screen name="SocialMain" component={SocialScreen} options={{ headerShown: false }} />
       <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} options={{ title: 'Perfil' }} />
-      <Stack.Screen name="Chat" component={ChatScreen} options={({ route }) => ({ title: route.params?.partnerName || 'Chat' })} />
+      <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -54,8 +73,8 @@ function SocialStack() {
 function MessagesStack() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="MessagesMain" component={MessagesScreen} options={{ title: '💬 Mensajes' }} />
-      <Stack.Screen name="Chat" component={ChatScreen} options={({ route }) => ({ title: route.params?.partnerName || 'Chat' })} />
+      <Stack.Screen name="MessagesMain" component={MessagesScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -65,9 +84,13 @@ function ProfileStack() {
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Editar perfil' }} />
+      <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} options={{ title: 'Perfil' }} />
     </Stack.Navigator>
   );
 }
+
+
 
 function TabIcon({ emoji, label, focused }) {
   return (
@@ -77,74 +100,22 @@ function TabIcon({ emoji, label, focused }) {
   );
 }
 
+import { FloatingTabBar } from '../components/navigation/FloatingTabBar';
+
 function MainTabs() {
   return (
     <Tab.Navigator
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.tabBar,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingBottom: 6,
-          paddingTop: 8,
-          height: 64,
-        },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+        tabBarTransparent: true,
       }}
     >
-      <Tab.Screen
-        name="Inicio"
-        component={HomeStack}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🎾" label="Inicio" focused={focused} />,
-          tabBarLabel: 'Inicio',
-        }}
-      />
-      <Tab.Screen
-        name="Crear"
-        component={CreateMatchScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <View style={{
-              width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary,
-              alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-              shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
-            }}>
-              <Text style={{ fontSize: 24, color: colors.white }}>+</Text>
-            </View>
-          ),
-          tabBarLabel: 'Crear',
-          headerShown: false,
-        }}
-      />
-      <Tab.Screen
-        name="Social"
-        component={SocialStack}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👥" label="Social" focused={focused} />,
-          tabBarLabel: 'Social',
-        }}
-      />
-      <Tab.Screen
-        name="Mensajes"
-        component={MessagesStack}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" label="Mensajes" focused={focused} />,
-          tabBarLabel: 'Mensajes',
-        }}
-      />
-      <Tab.Screen
-        name="Perfil"
-        component={ProfileStack}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label="Perfil" focused={focused} />,
-          tabBarLabel: 'Perfil',
-        }}
-      />
+      <Tab.Screen name="Inicio" component={HomeStack} />
+      <Tab.Screen name="Social" component={SocialStack} />
+      <Tab.Screen name="Crear" component={CreateMatchScreen} />
+      <Tab.Screen name="Mensajes" component={MessagesStack} />
+      <Tab.Screen name="Perfil" component={ProfileStack} />
     </Tab.Navigator>
   );
 }
@@ -154,7 +125,7 @@ export default function AppNavigator() {
 
   if (loading) {
     return (
-      <NavigationContainer>
+      <NavigationContainer theme={navigationTheme}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Splash" component={SplashScreen} />
         </Stack.Navigator>
@@ -163,14 +134,14 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           <Stack.Screen name="Main" component={MainTabs} />
         ) : (
           <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} options={authScreenOptions} />
+            <Stack.Screen name="Register" component={RegisterScreen} options={authScreenOptions} />
           </>
         )}
       </Stack.Navigator>

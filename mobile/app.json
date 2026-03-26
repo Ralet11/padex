@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PadelApp",
+    "name": "Padex",
     "slug": "padel-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,12 +11,15 @@
       "resizeMode": "contain",
       "backgroundColor": "#0A0E1A"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.padelapp.mobile"
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0E1A"
@@ -26,8 +29,13 @@
     "plugins": [
       [
         "expo-image-picker",
-        { "photosPermission": "Necesitamos acceso a tus fotos para que puedas subir tu foto de perfil." }
-      ]
+        {
+          "photosPermission": "Necesitamos acceso a tus fotos para que puedas subir tu foto de perfil."
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-asset"
     ]
   }
 }

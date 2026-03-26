@@ -1,17 +1,41 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../theme/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { messagesAPI } from '../../services/api';
 import { getSocket, joinConnectionRoom, sendSocketMessage, emitTyping } from '../../services/socket';
-import { useAuth } from '../../context/AuthContext';
-import { colors, spacing, radius } from '../../theme';
+import { screenPadding } from '../../theme/layout';
+
+function parseMessageDate(rawValue) {
+  if (!rawValue) return null;
+  const date = new Date(rawValue);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function buildDateKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
 
 export default function ChatScreen({ route, navigation }) {
   const { connectionId, partnerName } = route.params;
   const { user } = useAuth();
+  const { colors, spacing, radius } = useTheme();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -19,16 +43,12 @@ export default function ChatScreen({ route, navigation }) {
   const flatRef = useRef(null);
   const typingTimeout = useRef(null);
 
-  useEffect(() => {
-    navigation.setOptions({ title: partnerName });
-  }, [partnerName]);
-
   const fetchMessages = useCallback(async () => {
     try {
       const res = await messagesAPI.list(connectionId);
-      setMessages(res.data.messages);
+      setMessages(Array.isArray(res.data.messages) ? res.data.messages : []);
     } catch (err) {
-      console.error(err);
+      console.error('[chat] fetch failed', err);
     }
   }, [connectionId]);
 
@@ -37,41 +57,72 @@ export default function ChatScreen({ route, navigation }) {
     joinConnectionRoom(connectionId);
 
     const socket = getSocket();
-    if (socket) {
-      socket.on('new_message', (msg) => {
-        setMessages((prev) => {
-          if (prev.find((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
-        setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
-      });
+    if (!socket) return undefined;
 
-      socket.on('user_typing', () => {
-        setIsTyping(true);
-        clearTimeout(typingTimeout.current);
-        typingTimeout.current = setTimeout(() => setIsTyping(false), 2000);
+    const handleNewMessage = (msg) => {
+      setMessages((prev) => {
+        if (prev.some((item) => item.id === msg.id)) return prev;
+        return [...prev, msg];
       });
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 120);
+    };
 
-      return () => {
-        socket.off('new_message');
-        socket.off('user_typing');
-      };
-    }
-  }, [connectionId]);
+    const handleTyping = () => {
+      setIsTyping(true);
+      clearTimeout(typingTimeout.current);
+      typingTimeout.current = setTimeout(() => setIsTyping(false), 1800);
+    };
+
+    socket.on('new_message', handleNewMessage);
+    socket.on('user_typing', handleTyping);
+
+    return () => {
+      clearTimeout(typingTimeout.current);
+      socket.off('new_message', handleNewMessage);
+      socket.off('user_typing', handleTyping);
+    };
+  }, [connectionId, fetchMessages]);
 
   useEffect(() => {
-    if (messages.length) setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
+    if (!messages.length) return;
+    setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 120);
   }, [messages.length]);
+
+  const groupedMessages = useMemo(() => {
+    return messages.reduce((acc, msg, index) => {
+      const currentDate = parseMessageDate(msg.created_at || msg.createdAt);
+      const previousDate = index > 0 ? parseMessageDate(messages[index - 1].created_at || messages[index - 1].createdAt) : null;
+      const currentKey = currentDate ? buildDateKey(currentDate) : 'unknown';
+      const previousKey = previousDate ? buildDateKey(previousDate) : null;
+
+      if (currentKey !== previousKey) {
+        acc.push({
+          id: `date_${currentKey}_${index}`,
+          type: 'date',
+          date: currentDate,
+        });
+      }
+
+      acc.push({
+        ...msg,
+        parsedDate: currentDate,
+      });
+
+      return acc;
+    }, []);
+  }, [messages]);
 
   async function handleSend() {
     const text = input.trim();
-    if (!text) return;
+    if (!text || sending) return;
+
     setInput('');
     setSending(true);
+
     try {
       sendSocketMessage(connectionId, text);
-    } catch {
-      // Fallback REST
+    } catch (err) {
+      console.warn('[chat] socket send failed, using REST fallback', err);
       const res = await messagesAPI.send({ connection_id: connectionId, content: text });
       setMessages((prev) => [...prev, res.data.message]);
     } finally {
@@ -84,135 +135,365 @@ export default function ChatScreen({ route, navigation }) {
     emitTyping(connectionId);
   }
 
-  function formatTime(dateStr) {
-    return new Date(dateStr).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  function formatTime(date) {
+    if (!date) return '';
+    return date.toLocaleTimeString('es-AR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
-  function formatDate(dateStr) {
-    const d = new Date(dateStr);
+  function formatDate(date) {
+    if (!date) return 'Sin fecha';
+
     const today = new Date();
-    if (d.toDateString() === today.toDateString()) return 'Hoy';
-    const yesterday = new Date(today);
+    const todayKey = buildDateKey(today);
+
+    const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
-    return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'short' });
+
+    const dateKey = buildDateKey(date);
+    if (dateKey === todayKey) return 'Hoy';
+    if (dateKey === buildDateKey(yesterday)) return 'Ayer';
+
+    return date.toLocaleDateString('es-AR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
   }
 
-  const groupedMessages = messages.reduce((acc, msg, i) => {
-    const date = msg.created_at?.split('T')[0];
-    const prevDate = i > 0 ? messages[i - 1].created_at?.split('T')[0] : null;
-    if (date !== prevDate) acc.push({ type: 'date', date, id: `date_${date}` });
-    acc.push(msg);
-    return acc;
-  }, []);
+  const styles = createStyles(colors, spacing, radius, insets);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex} keyboardVerticalOffset={90}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+        keyboardVerticalOffset={90}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Text style={styles.backButtonText}>‹</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {partnerName || 'Chat'}
+            </Text>
+          </View>
+          <View style={styles.headerSpacer} />
+        </View>
+
         <FlatList
           ref={flatRef}
           data={groupedMessages}
           keyExtractor={(item) => String(item.id)}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.messagesContent}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Todavia no hay mensajes</Text>
+              <Text style={styles.emptyText}>Escribile a {partnerName} para empezar la conversacion.</Text>
+            </View>
+          }
           renderItem={({ item }) => {
             if (item.type === 'date') {
               return (
                 <View style={styles.dateSeparator}>
-                  <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+                  <View style={styles.datePill}>
+                    <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+                  </View>
                 </View>
               );
             }
-            const isMine = item.sender_id === user.id;
+
+            const isMine = item.sender_id === user?.id;
+            const initial = (item.sender_name || partnerName || '?').trim().charAt(0).toUpperCase() || '?';
+
             return (
-              <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
+              <View style={[styles.messageRow, isMine ? styles.messageRowMine : styles.messageRowOther]}>
                 {!isMine && (
-                  <View style={styles.msgAvatar}>
-                    <Text style={styles.msgAvatarText}>{item.sender_name?.[0] || '?'}</Text>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initial}</Text>
                   </View>
                 )}
-                <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleOther]}>
-                  <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>{item.content}</Text>
-                  <Text style={[styles.msgTime, isMine && styles.msgTimeMine]}>{formatTime(item.created_at)}</Text>
+
+                <View style={[styles.bubbleWrap, isMine ? styles.bubbleWrapMine : styles.bubbleWrapOther]}>
+                  {!isMine && !!item.sender_name && (
+                    <Text style={styles.senderName}>{item.sender_name}</Text>
+                  )}
+                  <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleOther]}>
+                    <Text style={[styles.messageText, isMine ? styles.messageTextMine : styles.messageTextOther]}>
+                      {item.content}
+                    </Text>
+                    <Text style={[styles.messageTime, isMine ? styles.messageTimeMine : styles.messageTimeOther]}>
+                      {formatTime(item.parsedDate)}
+                    </Text>
+                  </View>
                 </View>
               </View>
             );
           }}
-          contentContainerStyle={styles.messages}
-          showsVerticalScrollIndicator={false}
         />
 
         {isTyping && (
-          <View style={styles.typingIndicator}>
-            <Text style={styles.typingText}>{partnerName} está escribiendo...</Text>
+          <View style={styles.typingWrap}>
+            <Text style={styles.typingText}>{partnerName} esta escribiendo...</Text>
           </View>
         )}
 
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={handleInputChange}
-            placeholder="Escribí un mensaje..."
-            placeholderTextColor={colors.textMuted}
-            multiline
-            maxLength={1000}
-            returnKeyType="default"
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!input.trim() || sending}
-          >
-            <Text style={styles.sendIcon}>➤</Text>
-          </TouchableOpacity>
+        <View style={styles.composerWrap}>
+          <View style={styles.composer}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={handleInputChange}
+              placeholder="Escribi un mensaje..."
+              placeholderTextColor={colors.text.tertiary}
+              multiline
+              maxLength={1000}
+              textAlignVertical="center"
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!input.trim() || sending) && styles.sendButtonDisabled]}
+              onPress={handleSend}
+              disabled={!input.trim() || sending}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.sendButtonText}>➤</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  flex: { flex: 1 },
-  messages: { padding: spacing.md, paddingBottom: 8 },
-  dateSeparator: { alignItems: 'center', marginVertical: 12 },
-  dateText: {
-    fontSize: 11, color: colors.textMuted, backgroundColor: colors.card,
-    paddingHorizontal: 12, paddingVertical: 4, borderRadius: radius.full,
-  },
-  msgRow: { flexDirection: 'row', marginBottom: 8, maxWidth: '85%' },
-  msgRowRight: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
-  msgRowLeft: { alignSelf: 'flex-start' },
-  msgAvatar: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: colors.secondary,
-    alignItems: 'center', justifyContent: 'center', marginRight: 6, marginTop: 4,
-  },
-  msgAvatarText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  bubble: {
-    borderRadius: radius.lg, paddingHorizontal: 14, paddingVertical: 9,
-    maxWidth: '100%',
-  },
-  bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: colors.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
-  bubbleText: { fontSize: 15, color: colors.text, lineHeight: 21 },
-  bubbleTextMine: { color: colors.white },
-  msgTime: { fontSize: 10, color: colors.textMuted, marginTop: 3, textAlign: 'right' },
-  msgTimeMine: { color: 'rgba(255,255,255,0.6)' },
-  typingIndicator: { paddingHorizontal: spacing.md, paddingBottom: 4 },
-  typingText: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic' },
-  inputBar: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    padding: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  input: {
-    flex: 1, backgroundColor: colors.card, borderRadius: radius.xl,
-    paddingHorizontal: 16, paddingVertical: 10, color: colors.text,
-    fontSize: 15, maxHeight: 100, borderWidth: 1, borderColor: colors.border,
-  },
-  sendBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center', marginLeft: 8,
-  },
-  sendBtnDisabled: { backgroundColor: colors.border },
-  sendIcon: { color: colors.white, fontSize: 16, fontWeight: '700' },
-});
+function createStyles(colors, spacing, radius, insets) {
+  const floatingTabBarOffset = 60 + spacing.md + 12 + insets.bottom;
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      height: 56,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: screenPadding.horizontal,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+      backgroundColor: colors.background,
+    },
+    backButton: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 18,
+      backgroundColor: colors.surfaceHighlight,
+    },
+    backButtonText: {
+      fontSize: 28,
+      lineHeight: 28,
+      color: colors.text.primary,
+      marginTop: -4,
+    },
+    headerCenter: {
+      flex: 1,
+      paddingHorizontal: 12,
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: colors.text.primary,
+    },
+    headerSpacer: {
+      width: 36,
+    },
+    flex: {
+      flex: 1,
+    },
+    messagesContent: {
+      paddingTop: spacing.md,
+      paddingHorizontal: screenPadding.horizontal,
+      paddingBottom: spacing.lg,
+      flexGrow: 1,
+    },
+    emptyState: {
+      flex: 1,
+      minHeight: 240,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.lg,
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.text.primary,
+      marginBottom: 6,
+    },
+    emptyText: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.text.secondary,
+      textAlign: 'center',
+    },
+    dateSeparator: {
+      alignItems: 'center',
+      marginVertical: spacing.md,
+    },
+    datePill: {
+      backgroundColor: colors.surfaceHighlight,
+      borderColor: colors.border,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: radius.full,
+    },
+    dateText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text.secondary,
+    },
+    messageRow: {
+      width: '100%',
+      flexDirection: 'row',
+      marginBottom: spacing.sm,
+      alignItems: 'flex-end',
+    },
+    messageRowMine: {
+      justifyContent: 'flex-end',
+    },
+    messageRowOther: {
+      justifyContent: 'flex-start',
+    },
+    avatar: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 8,
+      marginBottom: 6,
+    },
+    avatarText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text.primary,
+    },
+    bubbleWrap: {
+      maxWidth: '78%',
+    },
+    bubbleWrapMine: {
+      alignItems: 'flex-end',
+    },
+    bubbleWrapOther: {
+      alignItems: 'flex-start',
+    },
+    senderName: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.text.tertiary,
+      marginBottom: 4,
+      marginLeft: 4,
+    },
+    bubble: {
+      paddingHorizontal: 14,
+      paddingTop: 11,
+      paddingBottom: 8,
+      borderRadius: 20,
+    },
+    bubbleMine: {
+      backgroundColor: colors.text.primary,
+      borderBottomRightRadius: 6,
+    },
+    bubbleOther: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      borderBottomLeftRadius: 6,
+    },
+    messageText: {
+      fontSize: 15,
+      lineHeight: 21,
+    },
+    messageTextMine: {
+      color: colors.background,
+    },
+    messageTextOther: {
+      color: colors.text.primary,
+    },
+    messageTime: {
+      fontSize: 11,
+      marginTop: 6,
+      textAlign: 'right',
+    },
+    messageTimeMine: {
+      color: 'rgba(255,255,255,0.72)',
+    },
+    messageTimeOther: {
+      color: colors.text.tertiary,
+    },
+    typingWrap: {
+      paddingHorizontal: screenPadding.horizontal,
+      paddingBottom: 6,
+    },
+    typingText: {
+      fontSize: 12,
+      fontStyle: 'italic',
+      color: colors.text.tertiary,
+    },
+    composerWrap: {
+      paddingHorizontal: screenPadding.horizontal,
+      paddingTop: spacing.xs,
+      paddingBottom: floatingTabBarOffset,
+      backgroundColor: colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    composer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      backgroundColor: colors.surface,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingLeft: 16,
+      paddingRight: 6,
+      paddingVertical: 6,
+    },
+    input: {
+      flex: 1,
+      maxHeight: 110,
+      fontSize: 15,
+      lineHeight: 20,
+      color: colors.text.primary,
+      paddingTop: 10,
+      paddingBottom: 10,
+      paddingRight: 12,
+    },
+    sendButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.text.primary,
+    },
+    sendButtonDisabled: {
+      backgroundColor: colors.border,
+    },
+    sendButtonText: {
+      fontSize: 16,
+      color: colors.background,
+      fontWeight: '700',
+      marginLeft: 2,
+    },
+  });
+}

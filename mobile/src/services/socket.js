@@ -42,3 +42,15 @@ export function sendSocketMessage(connectionId, content) {
 export function emitTyping(connectionId) {
   if (socket) socket.emit('typing', { connection_id: connectionId });
 }
+
+export function joinVenueAvailability(venueId, date) {
+  if (socket && venueId) {
+    socket.emit('join_venue_availability', { venue_id: venueId, date });
+  }
+}
+
+export function leaveVenueAvailability(venueId, date) {
+  if (socket && venueId) {
+    socket.emit('leave_venue_availability', { venue_id: venueId, date });
+  }
+}

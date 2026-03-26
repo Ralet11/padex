@@ -1,11 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ⚙️ Cambia esta IP por la de tu computadora en red local
-// Si usas emulador Android: http://10.0.2.2:3000
-// Si usas dispositivo físico: http://TU_IP_LOCAL:3000
-// Si usas Expo Go en la misma red: http://TU_IP_LOCAL:3000
-export const BASE_URL = 'http://192.168.1.36:3000';
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.36:3000';
 export const API_URL = `${BASE_URL}/api`;
 
 const api = axios.create({
@@ -13,30 +9,48 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Interceptor: agrega token automáticamente
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  console.log('[api] request', {
+    method: config.method,
+    url: `${config.baseURL || ''}${config.url || ''}`,
+    hasToken: Boolean(token),
+  });
+
   return config;
 });
 
-// Interceptor: manejo de errores
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    console.log('[api] response', {
+      method: res.config?.method,
+      url: `${res.config?.baseURL || ''}${res.config?.url || ''}`,
+      status: res.status,
+    });
+    return res;
+  },
   (err) => {
+    console.warn('[api] error', {
+      method: err.config?.method,
+      url: `${err.config?.baseURL || ''}${err.config?.url || ''}`,
+      status: err.response?.status || null,
+      error: err.response?.data?.error || err.message,
+      requestId: err.response?.headers?.['x-request-id'] || null,
+    });
+
     const msg = err.response?.data?.error || err.message || 'Error de red';
     return Promise.reject(new Error(msg));
   }
 );
 
-// Auth
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
 };
 
-// Profile
 export const profileAPI = {
   get: (id) => api.get(`/profile/${id}`),
   update: (data) => api.put('/profile', data),
@@ -45,14 +59,15 @@ export const profileAPI = {
   }),
 };
 
-// Courts
 export const courtsAPI = {
   list: () => api.get('/courts'),
+  venues: () => api.get('/courts/venues'),
+  venueSlots: (id, date) => api.get(`/courts/venues/${id}/slots`, { params: date ? { date } : {} }),
+  venueAvailabilitySummary: (id, from, to) => api.get(`/courts/venues/${id}/availability-summary`, { params: { from, to } }),
   get: (id) => api.get(`/courts/${id}`),
   slots: (id, date) => api.get(`/courts/${id}/slots`, { params: date ? { date } : {} }),
 };
 
-// Matches
 export const matchesAPI = {
   list: (params) => api.get('/matches', { params }),
   my: () => api.get('/matches/my'),
@@ -63,7 +78,6 @@ export const matchesAPI = {
   complete: (id) => api.put(`/matches/${id}/complete`),
 };
 
-// Social
 export const socialAPI = {
   players: (params) => api.get('/social/players', { params }),
   connect: (addressee_id) => api.post('/social/connect', { addressee_id }),
@@ -73,13 +87,11 @@ export const socialAPI = {
   pending: () => api.get('/social/pending'),
 };
 
-// Messages
 export const messagesAPI = {
   list: (connectionId) => api.get(`/messages/${connectionId}`),
   send: (data) => api.post('/messages', data),
 };
 
-// Ratings
 export const ratingsAPI = {
   rate: (data) => api.post('/ratings', data),
   get: (userId) => api.get(`/ratings/${userId}`),

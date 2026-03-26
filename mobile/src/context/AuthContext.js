@@ -18,12 +18,14 @@ export function AuthProvider({ children }) {
     try {
       const savedToken = await AsyncStorage.getItem('token');
       if (savedToken) {
+        console.log('[auth] restoring session', { hasToken: true });
         const res = await authAPI.me();
         setUser(res.data.user);
         setToken(savedToken);
         initSocket(savedToken);
       }
-    } catch {
+    } catch (err) {
+      console.warn('[auth] restore session failed', { message: err.message });
       await AsyncStorage.removeItem('token');
     } finally {
       setLoading(false);
@@ -31,22 +33,29 @@ export function AuthProvider({ children }) {
   }
 
   async function login(email, password) {
+    console.log('[auth] login start', { email: email.trim().toLowerCase() });
     const res = await authAPI.login({ email, password });
     const { token: t, user: u } = res.data;
     await AsyncStorage.setItem('token', t);
     setToken(t);
     setUser(u);
     initSocket(t);
+    console.log('[auth] login success', { userId: u.id, role: u.role });
     return u;
   }
 
   async function register(data) {
+    console.log('[auth] register start', {
+      email: data.email?.trim().toLowerCase(),
+      hasConfirmPassword: Boolean(data.confirmPassword),
+    });
     const res = await authAPI.register(data);
     const { token: t, user: u } = res.data;
     await AsyncStorage.setItem('token', t);
     setToken(t);
     setUser(u);
     initSocket(t);
+    console.log('[auth] register success', { userId: u.id, role: u.role });
     return u;
   }
 

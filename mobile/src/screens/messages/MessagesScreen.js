@@ -3,11 +3,17 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { socialAPI } from '../../services/api';
 import { getSocket } from '../../services/socket';
-import { colors, spacing, radius } from '../../theme';
+import { useTheme } from '../../theme/ThemeContext';
+import { typography } from '../../theme/typography';
+import { spacing, radius } from '../../theme/spacing';
+import { screenPadding } from '../../theme/layout';
 
 export default function MessagesScreen({ navigation }) {
+  const { colors, isDark } = useTheme();
   const [connections, setConnections] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -32,6 +38,25 @@ export default function MessagesScreen({ navigation }) {
     }
   }, []);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchConnections();
+    }, [])
+  );
+
+  function openChat(connection) {
+    setConnections((prev) =>
+      prev.map((item) =>
+        item.id === connection.id ? { ...item, unread_count: 0 } : item
+      )
+    );
+
+    navigation.navigate('Chat', {
+      connectionId: connection.id,
+      partnerName: connection.partner_name,
+    });
+  }
+
   const onRefresh = () => { setRefreshing(true); fetchConnections(); };
 
   function timeAgo(dateStr) {
@@ -45,47 +70,64 @@ export default function MessagesScreen({ navigation }) {
     return `${Math.floor(hrs / 24)}d`;
   }
 
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <Text style={[typography.h1, { color: colors.text.primary }]}>Mensajes</Text>
+      <Text style={[typography.body, { color: colors.text.secondary, marginTop: 4 }]}>
+        Tus chats de Padel.
+      </Text>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Text style={styles.header}>Mensajes</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <FlatList
         data={connections}
+        ListHeaderComponent={renderHeader}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={styles.item}
-            onPress={() => navigation.navigate('Chat', { connectionId: item.id, partnerName: item.partner_name })}
+            style={[styles.item, { borderBottomColor: colors.borderLight }]}
+            onPress={() => openChat(item)}
+            activeOpacity={0.7}
           >
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{item.partner_name?.[0] || '?'}</Text>
-              <View style={[styles.onlineDot, { backgroundColor: colors.primary }]} />
+              <View style={[styles.avatarInner, { backgroundColor: colors.text.primary }]}>
+                <Text style={[typography.h3, { color: colors.background }]}>{item.partner_name?.[0]?.toUpperCase() || '?'}</Text>
+              </View>
+              {/* Online Dot */}
+              <View style={[styles.onlineDot, { backgroundColor: colors.accent, borderColor: colors.background }]} />
             </View>
             <View style={styles.content}>
               <View style={styles.topRow}>
-                <Text style={styles.name}>{item.partner_name}</Text>
-                <Text style={styles.time}>{timeAgo(item.last_message_at)}</Text>
+                <Text style={[typography.bodyBold, { color: colors.text.primary }]}>{item.partner_name}</Text>
+                <Text style={[typography.caption, { color: item.unread_count > 0 ? colors.text.primary : colors.text.tertiary, fontWeight: item.unread_count > 0 ? '700' : '400' }]}>
+                  {timeAgo(item.last_message_at)}
+                </Text>
               </View>
               <View style={styles.bottomRow}>
-                <Text style={[styles.lastMsg, item.unread_count > 0 && styles.unread]} numberOfLines={1}>
+                <Text
+                  style={[typography.body, { flex: 1, color: item.unread_count > 0 ? colors.text.primary : colors.text.secondary, fontWeight: item.unread_count > 0 ? '600' : '400' }]}
+                  numberOfLines={1}
+                >
                   {item.last_message || 'Sin mensajes aún'}
                 </Text>
                 {item.unread_count > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{item.unread_count}</Text>
+                  <View style={[styles.badge, { backgroundColor: colors.text.primary }]}>
+                    <Text style={[styles.badgeText, { color: colors.accent }]}>{item.unread_count}</Text>
                   </View>
                 )}
               </View>
             </View>
           </TouchableOpacity>
         )}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text.primary} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>💬</Text>
-            <Text style={styles.emptyTitle}>Sin conversaciones</Text>
-            <Text style={styles.emptyText}>Conectate con jugadores para poder chatear</Text>
+            <Feather name="message-circle" size={48} color={colors.text.tertiary} style={{ marginBottom: spacing.md }} />
+            <Text style={[typography.h3, { color: colors.text.primary, marginBottom: 4 }]}>Sin conversaciones</Text>
+            <Text style={[typography.body, { color: colors.text.secondary, textAlign: 'center' }]}>Conectate con jugadores en Social para empezar a chatear.</Text>
           </View>
         }
       />
@@ -94,39 +136,36 @@ export default function MessagesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { fontSize: 26, fontWeight: '800', color: colors.text, padding: spacing.md, paddingBottom: 8 },
-  list: { paddingBottom: 80 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: 14 },
+  container: { flex: 1 },
+  headerContainer: {
+    paddingHorizontal: screenPadding.horizontal,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+  },
+  list: { paddingBottom: 110 },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: screenPadding.horizontal,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+  },
   avatar: { position: 'relative' },
   avatarInner: {
-    width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary,
+    width: 52, height: 52, borderRadius: 26,
     alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: {
-    width: 52, height: 52, lineHeight: 52, textAlign: 'center',
-    color: '#fff', fontSize: 20, fontWeight: '700',
-    backgroundColor: colors.primary, borderRadius: 26, overflow: 'hidden',
   },
   onlineDot: {
     position: 'absolute', bottom: 0, right: 0,
-    width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.bg,
+    width: 14, height: 14, borderRadius: 7, borderWidth: 2,
   },
-  content: { flex: 1, marginLeft: 12 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
-  name: { fontSize: 15, fontWeight: '700', color: colors.text },
-  time: { fontSize: 12, color: colors.textMuted },
+  content: { flex: 1, marginLeft: 14 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
   bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  lastMsg: { fontSize: 13, color: colors.textMuted, flex: 1 },
-  unread: { color: colors.text, fontWeight: '600' },
   badge: {
-    backgroundColor: colors.primary, borderRadius: 10,
+    borderRadius: 10,
     minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', marginLeft: 8,
   },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  separator: { height: 1, backgroundColor: colors.divider, marginLeft: 76 },
-  empty: { alignItems: 'center', paddingVertical: 80 },
-  emptyIcon: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
-  emptyText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+  empty: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: spacing.xl },
 });

@@ -1,33 +1,49 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, TouchableOpacity, Alert,
+  View,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  Alert,
+  Image,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { User, Mail, Lock } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import Button from '../../components/Button';
-import Input from '../../components/Input';
-import { colors, spacing, radius } from '../../theme';
+import { useTheme } from '../../theme/ThemeContext';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Typography } from '../../components/ui/Typography';
+import { Card } from '../../components/ui/Card';
+import { screenPadding } from '../../theme/layout';
 
 const CATEGORIES = [
-  { value: 'principiante', label: 'Principiante', emoji: '🌱', elo: '~800', desc: 'Estoy aprendiendo' },
-  { value: 'intermedio', label: 'Intermedio', emoji: '🎯', elo: '~1000', desc: 'Juego regularmente' },
-  { value: 'avanzado', label: 'Avanzado', emoji: '🔥', elo: '~1200', desc: 'Juego competitivo' },
-  { value: 'profesional', label: 'Profesional', emoji: '🏆', elo: '~1500', desc: 'Nivel profesional' },
+  { value: 'principiante', label: 'Principiante', emoji: '\u{1F331}', elo: '~800' },
+  { value: 'intermedio', label: 'Intermedio', emoji: '\u{1F3AF}', elo: '~1000' },
+  { value: 'avanzado', label: 'Avanzado', emoji: '\u{1F525}', elo: '~1200' },
+  { value: 'profesional', label: 'Profesional', emoji: '\u{1F3C6}', elo: '~1500' },
 ];
 
 const POSITIONS = [
-  { value: 'drive', label: 'Drive', emoji: '👈' },
-  { value: 'reves', label: 'Revés', emoji: '👉' },
+  { value: 'drive', label: 'Drive', emoji: '\u{1F448}' },
+  { value: 'reves', label: 'Reves', emoji: '\u{1F449}' },
 ];
 
 export default function RegisterScreen({ navigation }) {
   const { register } = useAuth();
+  const { colors, spacing, radius } = useTheme();
+  const [keyboardInset, setKeyboardInset] = useState(0);
+
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
     self_category: 'intermedio',
     position: 'drive',
     paddle_brand: '',
@@ -36,19 +52,23 @@ export default function RegisterScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   function update(field, value) {
-    setForm((p) => ({ ...p, [field]: value }));
-    setErrors((p) => ({ ...p, [field]: undefined }));
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
   }
 
   function validateStep1() {
-    const e = {};
-    if (!form.name.trim()) e.name = 'El nombre es requerido';
-    if (!form.email.trim()) e.email = 'El email es requerido';
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email inválido';
-    if (!form.password) e.password = 'La contraseña es requerida';
-    else if (form.password.length < 6) e.password = 'Mínimo 6 caracteres';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    const nextErrors = {};
+
+    if (!form.name.trim()) nextErrors.name = 'El nombre es requerido';
+    if (!form.email.trim()) nextErrors.email = 'El email es requerido';
+    else if (!/\S+@\S+\.\S+/.test(form.email)) nextErrors.email = 'Email invalido';
+    if (!form.password) nextErrors.password = 'La contrasena es requerida';
+    else if (form.password.length < 6) nextErrors.password = 'Minimo 6 caracteres';
+    if (!form.confirmPassword) nextErrors.confirmPassword = 'Confirma la contrasena';
+    else if (form.password !== form.confirmPassword) nextErrors.confirmPassword = 'Las contrasenas no coinciden';
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   }
 
   function goNext() {
@@ -67,88 +87,257 @@ export default function RegisterScreen({ navigation }) {
     }
   }
 
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardInset((event.endCoordinates?.height ?? 0) + spacing.lg);
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardInset(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [spacing.lg]);
+
   return (
-    <LinearGradient colors={[colors.bg, '#0D1E35']} style={styles.gradient}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.logo}>🎾</Text>
-            <Text style={styles.title}>{step === 1 ? 'Crear cuenta' : 'Tu perfil de juego'}</Text>
-            <View style={styles.steps}>
-              {[1, 2].map((s) => (
-                <View key={s} style={[styles.step, s <= step && styles.stepActive]} />
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.form}>
-            {step === 1 ? (
-              <>
-                <Input label="Nombre completo" value={form.name} onChangeText={(v) => update('name', v)} placeholder="Juan Pérez" error={errors.name} icon={<Text>👤</Text>} />
-                <Input label="Email" value={form.email} onChangeText={(v) => update('email', v)} placeholder="tu@email.com" keyboardType="email-address" autoCapitalize="none" error={errors.email} icon={<Text>📧</Text>} />
-                <Input label="Contraseña" value={form.password} onChangeText={(v) => update('password', v)} placeholder="Mínimo 6 caracteres" secureTextEntry error={errors.password} icon={<Text>🔒</Text>} />
-                <Button title="Continuar →" onPress={goNext} size="lg" style={{ marginTop: 8 }} />
-              </>
-            ) : (
-              <>
-                {/* Categoría */}
-                <Text style={styles.sectionLabel}>¿Cuál es tu nivel?</Text>
-                <Text style={styles.sectionHint}>Esto determina tu ELO inicial. Se ajustará con el tiempo.</Text>
-                <View style={styles.grid}>
-                  {CATEGORIES.map((c) => (
-                    <TouchableOpacity
-                      key={c.value}
-                      style={[styles.optionCard, form.self_category === c.value && styles.optionSelected]}
-                      onPress={() => update('self_category', c.value)}
-                    >
-                      <Text style={styles.optionEmoji}>{c.emoji}</Text>
-                      <Text style={[styles.optionLabel, form.self_category === c.value && styles.optionLabelActive]}>{c.label}</Text>
-                      <Text style={styles.optionElo}>{c.elo} ELO</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Posición */}
-                <Text style={[styles.sectionLabel, { marginTop: 16 }]}>¿Jugás de?</Text>
-                <View style={styles.row}>
-                  {POSITIONS.map((p) => (
-                    <TouchableOpacity
-                      key={p.value}
-                      style={[styles.posCard, form.position === p.value && styles.posCardActive, { flex: 1, marginHorizontal: 4 }]}
-                      onPress={() => update('position', p.value)}
-                    >
-                      <Text style={styles.posEmoji}>{p.emoji}</Text>
-                      <Text style={[styles.posLabel, form.position === p.value && styles.posLabelActive]}>{p.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Paleta */}
-                <Input
-                  label="Paleta que usás (opcional)"
-                  value={form.paddle_brand}
-                  onChangeText={(v) => update('paddle_brand', v)}
-                  placeholder="Ej: Head Alpha"
-                  icon={<Text>🏓</Text>}
-                  style={{ marginTop: 16 }}
+    <LinearGradient
+      colors={['#050510', colors.background, colors.background]}
+      style={styles.gradient}
+    >
+      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+          style={styles.flex}
+        >
+          <ScrollView
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingTop: spacing.lg,
+                paddingBottom: Math.max(spacing.xxl, keyboardInset),
+                paddingHorizontal: screenPadding.horizontal,
+              },
+            ]}
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            contentInsetAdjustmentBehavior="always"
+          >
+            <View style={styles.header}>
+              <View style={[styles.logoContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary }]}>
+                <Image
+                  source={require('../../../assets/padexicon.jpeg')}
+                  style={styles.logo}
+                  resizeMode="cover"
                 />
+              </View>
+              <Typography
+                variant="bodyMedium"
+                color="primary"
+                align="center"
+                style={{ marginTop: spacing.sm, opacity: 0.72 }}
+              >
+                {step === 1 ? 'Crea tu cuenta para jugar' : 'Completa tu perfil de juego'}
+              </Typography>
+              <View style={styles.steps}>
+                {[1, 2].map((item) => (
+                  <View
+                    key={item}
+                    style={[
+                      styles.step,
+                      {
+                        backgroundColor: item <= step ? colors.primary : colors.border,
+                        borderRadius: radius.full,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
 
-                <View style={styles.btnRow}>
-                  <Button title="← Atrás" onPress={() => setStep(1)} variant="secondary" style={{ flex: 1 }} />
-                  <Button title="¡Jugar!" onPress={handleRegister} loading={loading} style={{ flex: 2 }} />
-                </View>
-              </>
-            )}
+            <Card variant="glass" style={styles.card}>
+              {step === 1 ? (
+                <>
+                  <Input
+                    label="Nombre completo"
+                    value={form.name}
+                    onChangeText={(value) => update('name', value)}
+                    placeholder="Juan Perez"
+                    error={errors.name}
+                    leftIcon={<User color={colors.text.secondary} size={20} />}
+                    returnKeyType="next"
+                  />
+                  <Input
+                    label="Email"
+                    value={form.email}
+                    onChangeText={(value) => update('email', value)}
+                    placeholder="tu@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    error={errors.email}
+                    leftIcon={<Mail color={colors.text.secondary} size={20} />}
+                    returnKeyType="next"
+                  />
+                  <Input
+                    label="Contrasena"
+                    value={form.password}
+                    onChangeText={(value) => update('password', value)}
+                    placeholder="Minimo 6 caracteres"
+                    secureTextEntry
+                    autoCorrect={false}
+                    error={errors.password}
+                    leftIcon={<Lock color={colors.text.secondary} size={20} />}
+                    returnKeyType="next"
+                  />
+                  <Input
+                    label="Confirmar contrasena"
+                    value={form.confirmPassword}
+                    onChangeText={(value) => update('confirmPassword', value)}
+                    placeholder="Repite tu contrasena"
+                    secureTextEntry
+                    autoCorrect={false}
+                    error={errors.confirmPassword}
+                    leftIcon={<Lock color={colors.text.secondary} size={20} />}
+                    returnKeyType="done"
+                    onSubmitEditing={goNext}
+                  />
 
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginBtn}>
-              <Text style={styles.loginText}>
-                ¿Ya tenés cuenta? <Text style={styles.loginLink}>Iniciá sesión</Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+                  <Button
+                    title="Continuar"
+                    onPress={goNext}
+                    size="lg"
+                    style={{ marginTop: spacing.md }}
+                  />
+                </>
+              ) : (
+                <>
+                  <Typography variant="h2" color="text" align="center" style={{ marginBottom: spacing.md }}>
+                    Tu perfil de juego
+                  </Typography>
+                  <Typography variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
+                    Cual es tu nivel?
+                  </Typography>
+                  <Typography variant="caption" color="tertiary" style={{ marginBottom: spacing.md }}>
+                    Esto define tu ELO inicial y luego se ajusta con tus partidos.
+                  </Typography>
+
+                  <View style={styles.grid}>
+                    {CATEGORIES.map((category) => {
+                      const isSelected = form.self_category === category.value;
+                      return (
+                        <TouchableOpacity
+                          key={category.value}
+                          activeOpacity={0.7}
+                          style={[
+                            styles.optionCard,
+                            {
+                              borderColor: isSelected ? colors.primary : colors.border,
+                              backgroundColor: isSelected ? colors.primaryMuted : colors.surfaceHighlight,
+                              borderRadius: radius.md,
+                            },
+                          ]}
+                          onPress={() => update('self_category', category.value)}
+                        >
+                          <Typography style={{ fontSize: 24, marginBottom: 4 }}>{category.emoji}</Typography>
+                          <Typography
+                            variant="bodyBold"
+                            color={isSelected ? 'primary' : 'secondary'}
+                            style={{ fontSize: 13 }}
+                          >
+                            {category.label}
+                          </Typography>
+                          <Typography variant="caption" color="tertiary" style={{ marginTop: 2, fontSize: 11 }}>
+                            {category.elo} ELO
+                          </Typography>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Typography
+                    variant="label"
+                    color="secondary"
+                    style={{ marginTop: spacing.lg, marginBottom: spacing.md }}
+                  >
+                    Juegas de?
+                  </Typography>
+
+                  <View style={styles.row}>
+                    {POSITIONS.map((position) => {
+                      const isSelected = form.position === position.value;
+                      return (
+                        <TouchableOpacity
+                          key={position.value}
+                          activeOpacity={0.7}
+                          style={[
+                            styles.posCard,
+                            {
+                              borderColor: isSelected ? colors.primary : colors.border,
+                              backgroundColor: isSelected ? colors.primaryMuted : colors.surfaceHighlight,
+                              borderRadius: radius.md,
+                            },
+                          ]}
+                          onPress={() => update('position', position.value)}
+                        >
+                          <Typography style={{ fontSize: 28, marginBottom: 6 }}>{position.emoji}</Typography>
+                          <Typography variant="bodyBold" color={isSelected ? 'primary' : 'secondary'}>
+                            {position.label}
+                          </Typography>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Input
+                    label="Paleta que usas (opcional)"
+                    value={form.paddle_brand}
+                    onChangeText={(value) => update('paddle_brand', value)}
+                    placeholder="Ej: Head Alpha"
+                    style={{ marginTop: spacing.lg }}
+                  />
+
+                  <View style={styles.btnRow}>
+                    <Button
+                      title="Atras"
+                      onPress={() => setStep(1)}
+                      variant="outline"
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      title="Jugar"
+                      onPress={handleRegister}
+                      loading={loading}
+                      style={{ flex: 2 }}
+                    />
+                  </View>
+                </>
+              )}
+
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={styles.loginBtn}
+                activeOpacity={0.7}
+              >
+                <Typography variant="bodyMedium" color="secondary" align="center">
+                  Ya tenes cuenta?{' '}
+                  <Typography variant="bodyBold" color="primary">
+                    Inicia sesion
+                  </Typography>
+                </Typography>
+              </TouchableOpacity>
+            </Card>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -156,46 +345,36 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   flex: { flex: 1 },
-  scroll: { flexGrow: 1, padding: spacing.lg },
-  header: { alignItems: 'center', paddingTop: 50, paddingBottom: 30 },
-  logo: { fontSize: 56, marginBottom: 12 },
-  title: { fontSize: 26, fontWeight: '800', color: colors.text },
+  scrollContent: { flexGrow: 1 },
+  header: { alignItems: 'center', marginBottom: 20, paddingTop: 8 },
+  card: { marginTop: 16 },
+  logoContainer: {
+    padding: 5,
+    borderWidth: 2,
+    borderRadius: 32,
+    shadowColor: '#bdf101',
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  logo: { width: 92, height: 92, borderRadius: 28 },
   steps: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  step: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.border },
-  stepActive: { backgroundColor: colors.primary },
-  form: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
-  sectionLabel: { fontSize: 14, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-  sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: 12 },
+  step: { width: 32, height: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   optionCard: {
-    width: '47%',
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
+    width: '48%',
     padding: 14,
     borderWidth: 1.5,
-    borderColor: colors.border,
     alignItems: 'center',
+    marginBottom: 8,
   },
-  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primaryBg },
-  optionEmoji: { fontSize: 24, marginBottom: 4 },
-  optionLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
-  optionLabelActive: { color: colors.primary },
-  optionElo: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  row: { flexDirection: 'row', marginHorizontal: -4 },
+  row: { flexDirection: 'row', gap: 8 },
   posCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
+    flex: 1,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: colors.border,
     alignItems: 'center',
   },
-  posCardActive: { borderColor: colors.primary, backgroundColor: colors.primaryBg },
-  posEmoji: { fontSize: 28, marginBottom: 6 },
-  posLabel: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
-  posLabelActive: { color: colors.primary },
   btnRow: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  loginBtn: { alignItems: 'center', marginTop: 20 },
-  loginText: { fontSize: 14, color: colors.textSecondary },
-  loginLink: { color: colors.primary, fontWeight: '700' },
+  loginBtn: { alignItems: 'center', marginTop: 24 },
 });

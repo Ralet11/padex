@@ -1,69 +1,110 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors, radius, spacing } from '../theme';
+import { useTheme } from '../theme/ThemeContext';
+import { radius, spacing, shadows } from '../theme/spacing';
+import { typography } from '../theme/typography';
 import Avatar from './Avatar';
+import { getRankByTier } from '../utils/rankings';
 
 const STATUS_CONFIG = {
-  open: { label: 'Abierto', color: colors.primary, bg: colors.primaryBg },
-  reserved: { label: 'Reservado', color: colors.accent, bg: colors.accentBg },
-  completed: { label: 'Finalizado', color: colors.textMuted, bg: colors.card },
-  cancelled: { label: 'Cancelado', color: colors.error, bg: colors.errorBg },
+  open: { label: 'Abierto', color: '#10B981', bg: 'rgba(16, 185, 129, 0.1)' },
+  reserved: { label: 'Reservado', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.1)' },
+  completed: { label: 'Finalizado', color: '#A1A1AA', bg: '#F4F4F5' },
+  cancelled: { label: 'Cancelado', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)' },
 };
 
+function getPlayerPrice(totalCourtPrice, orderIndex = 0) {
+  const basePrice = Number(totalCourtPrice || 0) / 4;
+  return Math.round(basePrice + (orderIndex * 2000));
+}
+
 export default function MatchCard({ match, onPress, compact = false }) {
+  const { colors, isDark } = useTheme();
   const status = STATUS_CONFIG[match.status] || STATUS_CONFIG.open;
   const playerCount = match.player_count ?? match.players?.length ?? 0;
   const spotsLeft = match.max_players - playerCount;
+
   const date = new Date(`${match.date}T${match.time}`);
-  const dayStr = date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const dayStr = date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '');
   const timeStr = match.time?.slice(0, 5);
 
+  const cardStyle = [
+    styles.card,
+    {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      shadowColor: isDark ? '#000' : '#A1A1AA',
+    }
+  ];
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      {/* Header */}
+    <TouchableOpacity
+      style={cardStyle}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {/* Header Info */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={[styles.statusDot, { backgroundColor: status.color }]} />
-          <Text style={styles.courtName} numberOfLines={1}>{match.court_name}</Text>
+          <Text style={[typography.label, { color: status.color }]}>
+            {status.label}
+          </Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-          <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-        </View>
+        <Text style={[typography.caption, { color: colors.text.secondary }]}>
+          {match.court_name}
+        </Text>
       </View>
 
       {/* Title */}
       {match.title ? (
-        <Text style={styles.title} numberOfLines={1}>{match.title}</Text>
+        <Text style={[typography.h3, { color: colors.text.primary, marginBottom: spacing.xs }]} numberOfLines={1}>
+          {match.title}
+        </Text>
       ) : null}
 
-      {/* Date + Time */}
-      <View style={styles.row}>
-        <View style={styles.chip}>
-          <Text style={styles.chipIcon}>📅</Text>
-          <Text style={styles.chipText}>{dayStr}</Text>
-        </View>
-        <View style={styles.chip}>
-          <Text style={styles.chipIcon}>⏰</Text>
-          <Text style={styles.chipText}>{timeStr}</Text>
-        </View>
-        <View style={styles.chip}>
-          <Text style={styles.chipIcon}>💰</Text>
-          <Text style={styles.chipText}>${match.price?.toLocaleString('es-AR')}</Text>
-        </View>
+      {/* Time & Date Display - Big Typography Style */}
+      <View style={styles.timeContainer}>
+        <Text style={[typography.body, { color: colors.text.secondary, textTransform: 'capitalize' }]}>
+          {dayStr}
+        </Text>
+        <View style={styles.dotSeparator} />
+        <Text style={[typography.h2, { color: colors.text.primary }]}>
+          {timeStr}
+        </Text>
       </View>
 
-      {/* Players */}
+      {/* Price tag */}
+      <View style={{ marginBottom: spacing.md }}>
+        <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>
+          Desde ${getPlayerPrice(match.price, 0).toLocaleString('es-AR')}
+        </Text>
+      </View>
+
+      {/* Footer Divider */}
+      <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+
+      {/* Footer: Creator & Spots */}
       <View style={styles.footer}>
         <View style={styles.playersRow}>
-          <Avatar name={match.creator_name} uri={match.creator_avatar} size={28} category={match.creator_category} />
-          <Text style={styles.playersText}>
-            {playerCount}/{match.max_players} jugadores
-          </Text>
+          <Avatar 
+            name={match.creator_name} 
+            uri={match.creator_avatar} 
+            size={28} 
+            category={getRankByTier(match.creator_category).name} 
+          />
+          <View>
+            <Text style={[typography.captionMedium, { color: colors.text.primary }]}>{match.creator_name}</Text>
+            <Text style={[typography.caption, { color: colors.text.secondary }]}>Organizador</Text>
+          </View>
         </View>
+
         {match.status === 'open' && (
-          <View style={[styles.spotsChip, spotsLeft === 0 ? { backgroundColor: colors.errorBg } : {}]}>
-            <Text style={[styles.spotsText, { color: spotsLeft === 0 ? colors.error : colors.primary }]}>
-              {spotsLeft === 0 ? 'Completo' : `${spotsLeft} lugar${spotsLeft > 1 ? 'es' : ''}`}
+          <View style={[
+            styles.spotsBadge,
+            { backgroundColor: spotsLeft === 0 ? colors.danger : colors.text.primary }
+          ]}>
+            <Text style={[typography.captionMedium, { color: colors.background, fontWeight: '700' }]}>
+              {spotsLeft === 0 ? 'Lleno' : `${spotsLeft} lugares`}
             </Text>
           </View>
         )}
@@ -74,45 +115,53 @@ export default function MatchCard({ match, onPress, compact = false }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    ...shadows.sm,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  statusDot: { width: 7, height: 7, borderRadius: 4, marginRight: 7 },
-  courtName: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, flex: 1 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.full },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  title: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 10 },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
-  chip: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    gap: 4,
   },
-  chipIcon: { fontSize: 12 },
-  chipText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  playersRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  playersText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
-  spotsChip: {
-    backgroundColor: colors.primaryBg,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  dotSeparator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#A1A1AA',
+    alignSelf: 'center',
+  },
+  divider: {
+    height: 1,
+    width: '100%',
+    marginBottom: spacing.md,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  playersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  spotsBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
     borderRadius: radius.full,
   },
-  spotsText: { fontSize: 12, fontWeight: '700' },
 });

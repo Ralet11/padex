@@ -3,36 +3,31 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { matchesAPI, ratingsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../theme/ThemeContext';
+import { typography } from '../../theme/typography';
+import { spacing, radius } from '../../theme/spacing';
 import Avatar from '../../components/Avatar';
 import MatchCard from '../../components/MatchCard';
-import { colors, spacing, radius } from '../../theme';
+import { RANK_CONFIG, getCategoryProgress, getRankByTier } from '../../utils/rankings';
+import { screenPadding } from '../../theme/layout';
 
-const CATEGORY_COLORS = {
-  principiante: '#6B7280', intermedio: '#3B82F6', avanzado: '#F59E0B', profesional: '#10B981',
-};
-
-function EloProgressBar({ elo }) {
-  const ranges = [
-    { label: 'P', min: 0, max: 900, color: '#6B7280' },
-    { label: 'I', min: 900, max: 1100, color: '#3B82F6' },
-    { label: 'A', min: 1100, max: 1300, color: '#F59E0B' },
-    { label: 'PRO', min: 1300, max: 1700, color: '#10B981' },
-  ];
-  const total = 1700;
-  const clamped = Math.min(elo, total);
-  const pct = (clamped / total) * 100;
+function RankProgressBar({ stars, tier }) {
+  const { colors } = useTheme();
+  const currentRank = getRankByTier(tier);
+  const nextRank = RANK_CONFIG[tier - 1]; // Reminder: Tier 1 is highest
+  const pct = getCategoryProgress(stars, tier);
 
   return (
     <View style={styles.eloBar}>
-      <View style={styles.eloTrack}>
-        <View style={[styles.eloFill, { width: `${pct}%`, backgroundColor: CATEGORY_COLORS[elo < 900 ? 'principiante' : elo < 1100 ? 'intermedio' : elo < 1300 ? 'avanzado' : 'profesional'] }]} />
+      <View style={[styles.eloTrack, { backgroundColor: colors.surfaceHighlight }]}>
+        <View style={[styles.eloFill, { width: `${pct}%`, backgroundColor: currentRank.starColor }]} />
       </View>
       <View style={styles.eloMarkers}>
-        {ranges.map((r) => (
-          <Text key={r.label} style={[styles.eloMarker, { color: r.color }]}>{r.label}</Text>
-        ))}
+        <Text style={[typography.label, { color: currentRank.starColor }]}>{currentRank.name}</Text>
+        {nextRank && <Text style={[typography.label, { color: colors.text.tertiary }]}>{nextRank.name}</Text>}
       </View>
     </View>
   );
@@ -40,10 +35,10 @@ function EloProgressBar({ elo }) {
 
 export default function ProfileScreen({ navigation }) {
   const { user, logout } = useAuth();
+  const { colors } = useTheme();
   const [myMatches, setMyMatches] = useState([]);
   const [ratingData, setRatingData] = useState({ avg_score: 0, total: 0 });
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab] = useState('historial');
 
   async function fetchData() {
     try {
@@ -62,155 +57,187 @@ export default function ProfileScreen({ navigation }) {
 
   useEffect(() => { fetchData(); }, []);
 
-  const catColor = CATEGORY_COLORS[user?.category] || colors.primary;
+  const rank = getRankByTier(user?.category_tier);
+  const catColor = rank.starColor || colors.text.primary;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.text.primary} />}
       >
         {/* Header */}
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Mi perfil</Text>
+          <Text style={[typography.h1, { color: colors.text.primary }]}>Perfil</Text>
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('EditProfile')}>
-              <Text style={styles.headerBtnText}>✏️ Editar</Text>
+            <TouchableOpacity style={[styles.headerBtn, { borderColor: colors.borderLight, backgroundColor: colors.surfaceHighlight }]} onPress={() => navigation.navigate('EditProfile')}>
+              <Feather name="edit-2" size={14} color={colors.text.primary} />
+              <Text style={[typography.captionMedium, { color: colors.text.primary, marginLeft: 6 }]}>Editar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.headerBtn}
+              style={[styles.headerBtn, { borderColor: colors.borderLight, backgroundColor: 'rgba(239, 68, 68, 0.05)' }]}
               onPress={() => Alert.alert('¿Cerrar sesión?', '', [
                 { text: 'Cancelar', style: 'cancel' },
                 { text: 'Salir', style: 'destructive', onPress: logout },
               ])}
             >
-              <Text style={styles.headerBtnText}>👋 Salir</Text>
+              <Feather name="log-out" size={14} color="#EF4444" />
+              <Text style={[typography.captionMedium, { color: '#EF4444', marginLeft: 6 }]}>Salir</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Profile hero */}
-        <View style={styles.hero}>
-          <Avatar name={user?.name} uri={user?.avatar} size={80} category={user?.category} />
-          <Text style={styles.name}>{user?.name}</Text>
-          <View style={[styles.catBadge, { backgroundColor: catColor + '22' }]}>
-            <Text style={[styles.catText, { color: catColor }]}>{user?.category}</Text>
-          </View>
-        </View>
-
-        {/* ELO */}
-        <View style={styles.eloCard}>
-          <View style={styles.eloHeader}>
-            <Text style={styles.eloTitle}>ELO Rating</Text>
-            <Text style={styles.eloValue}>⭐ {user?.elo}</Text>
-          </View>
-          <EloProgressBar elo={user?.elo || 1000} />
-          <Text style={styles.eloHint}>Tu categoría se ajusta automáticamente según tus partidos y calificaciones</Text>
-        </View>
-
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          {[
-            { label: 'Ganados', value: user?.wins || 0, icon: '🏆', color: colors.success },
-            { label: 'Perdidos', value: user?.losses || 0, icon: '💔', color: colors.error },
-            { label: 'Rating', value: ratingData.avg_score ? `★ ${ratingData.avg_score}` : '—', icon: '⭐', color: colors.accent },
-            { label: 'Partidos', value: myMatches.length, icon: '🎾', color: colors.secondary },
-          ].map((s) => (
-            <View key={s.label} style={styles.statBox}>
-              <Text style={styles.statIcon}>{s.icon}</Text>
-              <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+        <View style={styles.content}>
+          {/* Profile hero */}
+          <View style={styles.hero}>
+            <Avatar name={user?.name} uri={user?.avatar} size={88} category={rank.name} />
+            <Text style={[typography.h2, { color: colors.text.primary, marginTop: spacing.md }]}>{user?.name}</Text>
+            <View style={[styles.catBadge, { backgroundColor: catColor + '15', borderColor: catColor + '30', borderWidth: 1 }]}>
+              <Text style={[typography.captionMedium, { color: catColor, textTransform: 'capitalize' }]}>{rank.name}</Text>
             </View>
-          ))}
-        </View>
-
-        {/* Info personal */}
-        <View style={styles.infoCard}>
-          {[
-            { icon: '🎾', label: 'Posición', value: user?.position },
-            { icon: '🏓', label: 'Paleta', value: user?.paddle_brand },
-            { icon: '🤝', label: 'Compañero preferido', value: user?.preferred_partner },
-            { icon: '📋', label: 'Bio', value: user?.bio },
-          ].map((item) => item.value ? (
-            <View key={item.label} style={styles.infoRow}>
-              <Text style={styles.infoIcon}>{item.icon}</Text>
-              <Text style={styles.infoLabel}>{item.label}</Text>
-              <Text style={styles.infoValue}>{item.value}</Text>
-            </View>
-          ) : null)}
-        </View>
-
-        {/* Historial */}
-        <Text style={styles.sectionTitle}>Mis partidos</Text>
-        {myMatches.length === 0 ? (
-          <View style={styles.emptyMatches}>
-            <Text style={styles.emptyIcon}>🎾</Text>
-            <Text style={styles.emptyText}>No jugaste partidos aún</Text>
           </View>
-        ) : (
-          myMatches.map((m) => (
-            <MatchCard
-              key={m.id}
-              match={m}
-              onPress={() => navigation.navigate('Inicio', { screen: 'MatchDetail', params: { matchId: m.id } })}
-            />
-          ))
-        )}
+
+          {/* ELO */}
+          <View style={[styles.card, { borderColor: colors.borderLight }]}>
+            <View style={styles.eloHeader}>
+              <Text style={[typography.bodyBold, { color: colors.text.primary }]}>Rango de Estrellas</Text>
+              <Text style={[typography.h3, { color: colors.text.primary }]}>
+                <Feather name="star" size={18} color={rank.starColor} /> {user?.stars}
+              </Text>
+            </View>
+            <RankProgressBar stars={user?.stars || 0} tier={user?.category_tier || 7} />
+            <Text style={[typography.caption, { color: colors.text.tertiary, marginTop: spacing.sm, lineHeight: 18 }]}>
+              Sumas estrellas ganando partidos y recibiendo buenas calificaciones de otros jugadores.
+            </Text>
+            
+            <TouchableOpacity 
+              style={[styles.rankButton, { backgroundColor: colors.text.primary }]}
+              onPress={() => navigation.navigate('Leaderboard')}
+            >
+              <Text style={[typography.button, { color: colors.accent }]}>Ver Tabla de Posiciones</Text>
+              <Feather name="arrow-right" size={16} color={colors.accent} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Stats Bar */}
+          <View style={[styles.statsRow, { borderColor: colors.borderLight, backgroundColor: colors.surfaceHighlight }]}>
+            {[
+              { label: 'Ganados', value: user?.wins || 0, color: colors.text.primary },
+              { label: 'Perdidos', value: user?.losses || 0, color: colors.text.secondary },
+              { label: 'Rating', value: ratingData.avg_score ? `${ratingData.avg_score}` : '—', color: colors.text.primary },
+              { label: 'Encuentros', value: myMatches.length, color: colors.text.secondary },
+            ].map((s, i) => (
+              <View key={s.label} style={[styles.statBox, i !== 0 && { borderLeftWidth: 1, borderLeftColor: colors.borderLight }]}>
+                <Text style={[typography.h3, { color: s.color }]}>{s.value}</Text>
+                <Text style={[typography.caption, { color: colors.text.tertiary, marginTop: 2 }]}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Personal Info List */}
+          <View style={[styles.infoCard, { borderColor: colors.borderLight }]}>
+            {[
+              { icon: 'crosshair', label: 'Posición', value: user?.position },
+              { icon: 'shield', label: 'Paleta', value: user?.paddle_brand },
+              { icon: 'users', label: 'Compañero', value: user?.preferred_partner },
+              { icon: 'align-left', label: 'Biografía', value: user?.bio },
+            ].map((item, index) => item.value ? (
+              <View key={item.label} style={[styles.infoRow, index !== 0 && { borderTopWidth: 1, borderTopColor: colors.borderLight }]}>
+                <Feather name={item.icon} size={18} color={colors.text.tertiary} style={styles.infoIcon} />
+                <Text style={[typography.body, { color: colors.text.secondary, flex: 1 }]}>{item.label}</Text>
+                <Text style={[typography.bodyMedium, { color: colors.text.primary, textTransform: 'capitalize', maxWidth: '55%', textAlign: 'right' }]}>{item.value}</Text>
+              </View>
+            ) : null)}
+          </View>
+
+          {/* History */}
+          <Text style={[typography.h3, { color: colors.text.primary, marginTop: spacing.xl, marginBottom: spacing.md }]}>
+            Historial de Partidos
+          </Text>
+
+          {myMatches.length === 0 ? (
+            <View style={styles.emptyMatches}>
+              <Feather name="calendar" size={40} color={colors.text.tertiary} style={{ marginBottom: spacing.sm }} />
+              <Text style={[typography.body, { color: colors.text.secondary }]}>No jugaste partidos aún</Text>
+            </View>
+          ) : (
+            myMatches.map((m) => (
+              <MatchCard
+                key={m.id}
+                match={m}
+                onPress={() => navigation.navigate('Inicio', { screen: 'MatchDetail', params: { matchId: m.id } })}
+              />
+            ))
+          )}
+        </View>
+
+        {/* Fill empty space at bottom for Tab Bar */}
+        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing.md, paddingBottom: 90 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: colors.text },
-  headerActions: { flexDirection: 'row', gap: 8 },
+  container: { flex: 1 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: screenPadding.horizontal,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+  },
+  headerActions: { flexDirection: 'row', gap: spacing.sm },
   headerBtn: {
-    backgroundColor: colors.card, borderRadius: radius.md,
-    paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
   },
-  headerBtnText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
-  hero: { alignItems: 'center', paddingVertical: 20 },
-  name: { fontSize: 24, fontWeight: '800', color: colors.text, marginTop: 12 },
-  catBadge: { borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 5, marginTop: 8 },
-  catText: { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
-  eloCard: {
-    backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md,
-    marginBottom: spacing.md, borderWidth: 1, borderColor: colors.cardBorder,
+  content: { paddingHorizontal: screenPadding.horizontal },
+  hero: { alignItems: 'center', paddingVertical: spacing.lg },
+  catBadge: { borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 6, marginTop: spacing.sm },
+  card: {
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
   },
-  eloHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  eloTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
-  eloValue: { fontSize: 22, fontWeight: '900', color: colors.accent },
+  eloHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   eloBar: { marginBottom: 8 },
-  eloTrack: { height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
-  eloFill: { height: '100%', borderRadius: 4 },
+  eloTrack: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
+  eloFill: { height: '100%', borderRadius: 3 },
   eloMarkers: { flexDirection: 'row', justifyContent: 'space-between' },
-  eloMarker: { fontSize: 10, fontWeight: '700' },
-  eloHint: { fontSize: 11, color: colors.textMuted, marginTop: 6, lineHeight: 16 },
-  statsRow: {
-    flexDirection: 'row', backgroundColor: colors.card, borderRadius: radius.lg,
-    marginBottom: spacing.md, borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden',
+  rankButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.md,
+    paddingVertical: 12,
+    borderRadius: radius.lg,
+    gap: 8,
   },
-  statBox: { flex: 1, alignItems: 'center', padding: 14 },
-  statIcon: { fontSize: 18, marginBottom: 4 },
-  statValue: { fontSize: 17, fontWeight: '800' },
-  statLabel: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  statsRow: {
+    flexDirection: 'row',
+    borderRadius: radius.xl,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+  },
+  statBox: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
   infoCard: {
-    backgroundColor: colors.card, borderRadius: radius.lg, overflow: 'hidden',
-    marginBottom: spacing.md, borderWidth: 1, borderColor: colors.cardBorder,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+    borderWidth: 1,
   },
   infoRow: {
-    flexDirection: 'row', alignItems: 'center', padding: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
   },
-  infoIcon: { fontSize: 18, width: 28 },
-  infoLabel: { fontSize: 13, color: colors.textSecondary, flex: 1 },
-  infoValue: { fontSize: 13, fontWeight: '600', color: colors.text, textTransform: 'capitalize', maxWidth: '50%', textAlign: 'right' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12 },
-  emptyMatches: { alignItems: 'center', paddingVertical: 30 },
-  emptyIcon: { fontSize: 40, marginBottom: 8 },
-  emptyText: { fontSize: 14, color: colors.textSecondary },
+  infoIcon: { width: 32 },
+  emptyMatches: { alignItems: 'center', paddingVertical: 40 },
 });

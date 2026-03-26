@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme';
@@ -7,8 +7,8 @@ export default function SplashScreen() {
   return (
     <LinearGradient colors={[colors.bg, '#0D1E35']} style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.icon}>🎾</Text>
-        <Text style={styles.title}>PadelApp</Text>
+        <Text style={styles.icon}>{'\u{1F3BE}'}</Text>
+        <Text style={styles.title}>Padex</Text>
         <Text style={styles.subtitle}>Tu comunidad de padel</Text>
         <ActivityIndicator color={colors.primary} size="large" style={styles.loader} />
       </View>
