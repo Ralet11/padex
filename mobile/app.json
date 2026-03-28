@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "Padex",
-    "slug": "padel-app",
+    "slug": "padex-mobile",
+    "scheme": "padex",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,20 +12,33 @@
       "resizeMode": "contain",
       "backgroundColor": "#0A0E1A"
     },
+    "androidStatusBar": {
+      "backgroundColor": "#0A0E1A",
+      "barStyle": "light-content",
+      "hidden": false,
+      "translucent": false
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#0A0E1A",
+      "barStyle": "light-content",
+      "enforceContrast": false
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.padelapp.mobile"
+      "bundleIdentifier": "com.padex.mobile",
+      "buildNumber": "1"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0E1A"
+        "backgroundColor": "#07111B"
       },
-      "package": "com.padelapp.mobile"
+      "package": "com.padex.mobile",
+      "versionCode": 1
     },
     "plugins": [
       [
@@ -36,6 +50,12 @@
       "expo-font",
       "expo-secure-store",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "apiUrl": "https://apidev.insiderbookings.com",
+      "eas": {
+        "projectId": "5ec6a3d8-a9be-41ea-9dde-c02aff4e0a72"
+      }
+    }
   }
 }

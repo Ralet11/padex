@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { BASE_URL, matchesAPI, ratingsAPI } from '../../services/api';
+import { matchesAPI, ratingsAPI, resolveAssetUrl } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import Avatar from '../../components/Avatar';
@@ -20,12 +20,6 @@ const STATUS_CONFIG = {
   completed: { label: 'Finalizado', color: '#A1A1AA' },
   cancelled: { label: 'Cancelado', color: '#EF4444' },
 };
-
-function toAbsoluteImage(uri) {
-  if (!uri) return null;
-  if (uri.startsWith('http')) return uri;
-  return `${BASE_URL}${uri}`;
-}
 
 function getPlayerPrice(totalCourtPrice, orderIndex) {
   const basePrice = Number(totalCourtPrice || 0) / 4;
@@ -230,7 +224,7 @@ export default function MatchDetailScreen({ route, navigation }) {
   }
 
   const status = STATUS_CONFIG[match.status] || STATUS_CONFIG.open;
-  const venueImage = toAbsoluteImage(match.venue_image);
+  const venueImage = resolveAssetUrl(match.venue_image);
   const date = new Date(`${match.date}T${match.time}`);
   const dayStr = date.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
   const totalValue = Number(match.price || 0);

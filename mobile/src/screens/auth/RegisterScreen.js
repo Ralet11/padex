@@ -7,9 +7,9 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
-  Image,
   Keyboard,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { User, Mail, Lock } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import { Input } from '../../components/ui/Input';
 import { Typography } from '../../components/ui/Typography';
 import { Card } from '../../components/ui/Card';
 import { screenPadding } from '../../theme/layout';
+import BrandLockup from '../../components/branding/BrandLockup';
 
 const CATEGORIES = [
   { value: 'principiante', label: 'Principiante', emoji: '\u{1F331}', elo: '~800' },
@@ -110,6 +111,7 @@ export default function RegisterScreen({ navigation }) {
       colors={['#050510', colors.background, colors.background]}
       style={styles.gradient}
     >
+      <StatusBar style="light" hidden={false} />
       <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -132,18 +134,18 @@ export default function RegisterScreen({ navigation }) {
             contentInsetAdjustmentBehavior="always"
           >
             <View style={styles.header}>
-              <View style={[styles.logoContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary }]}>
-                <Image
-                  source={require('../../../assets/padexicon.jpeg')}
-                  style={styles.logo}
-                  resizeMode="cover"
-                />
-              </View>
+              <BrandLockup
+                kicker={step === 1 ? 'CREA TU PERFIL' : 'AJUSTA TU NIVEL'}
+                subtitle={
+                  step === 1
+                    ? 'Crea tu perfil, suma partidos y empeza a subir tu ranking.'
+                    : 'Deja listo tu nivel y entra a jugar con mejores cruces.'
+                }
+              />
               <Typography
                 variant="bodyMedium"
-                color="primary"
                 align="center"
-                style={{ marginTop: spacing.sm, opacity: 0.72 }}
+                style={[styles.headerCopy, { marginTop: spacing.md }]}
               >
                 {step === 1 ? 'Crea tu cuenta para jugar' : 'Completa tu perfil de juego'}
               </Typography>
@@ -346,18 +348,9 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-  header: { alignItems: 'center', marginBottom: 20, paddingTop: 8 },
+  header: { alignItems: 'center', marginBottom: 16, paddingTop: 12 },
+  headerCopy: { color: 'rgba(255, 255, 255, 0.76)' },
   card: { marginTop: 16 },
-  logoContainer: {
-    padding: 5,
-    borderWidth: 2,
-    borderRadius: 32,
-    shadowColor: '#bdf101',
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 10,
-  },
-  logo: { width: 92, height: 92, borderRadius: 28 },
   steps: { flexDirection: 'row', gap: 8, marginTop: 16 },
   step: { width: 32, height: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },

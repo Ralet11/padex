@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
 import { Building2, Calendar, ChevronDown, CircleDot, Clock3, DollarSign, Image as ImageIcon, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Settings, Trash2, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { api, resolveAssetUrl } from '../../lib/runtime';
 
 const COURT_TYPES = ['Cristal', 'Muro', 'Panoramica'];
 const WEEKDAYS = [
@@ -201,7 +201,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
   async function fetchSlots() {
     setIsLoadingSlots(true);
     try {
-      const response = await axios.get('/api/partners/slots', { params: { from: viewRange.from, to: viewRange.to } });
+      const response = await api.get('/partners/slots', { params: { from: viewRange.from, to: viewRange.to } });
       setSlots(response.data.slots || []);
       await Promise.all([fetchExceptions(), fetchClosures()]);
     } catch (err) {
@@ -214,7 +214,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
 
   async function fetchAvailabilityRules() {
     try {
-      const response = await axios.get('/api/partners/availability-rules');
+      const response = await api.get('/partners/availability-rules');
       applyAvailabilityConfig(response.data);
     } catch (err) {
       console.error(err);
@@ -223,7 +223,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
 
   async function fetchExceptions() {
     try {
-      const response = await axios.get('/api/partners/availability-exceptions', { params: { from: viewRange.from, to: viewRange.to } });
+      const response = await api.get('/partners/availability-exceptions', { params: { from: viewRange.from, to: viewRange.to } });
       setExceptions(response.data.exceptions || []);
     } catch (err) {
       console.error(err);
@@ -233,7 +233,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
 
   async function fetchClosures() {
     try {
-      const response = await axios.get('/api/partners/court-closures', {
+      const response = await api.get('/partners/court-closures', {
         params: {
           from: viewRange.from < todayStr() ? viewRange.from : todayStr(),
           to: planningForm.to > viewRange.to ? planningForm.to : viewRange.to,
@@ -414,7 +414,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
   async function saveDayOverride() {
     setIsGeneratingSlots(true);
     try {
-      await axios.put('/api/partners/availability-exceptions', {
+      await api.put('/partners/availability-exceptions', {
         date: selectedAgendaDate,
         windows: dayOverrideForm.windows.map((window) => ({
           start_time: window.start_time,
@@ -445,7 +445,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     if (!selectedClosureCourt?.id) return;
     setIsSavingClosure(true);
     try {
-      await axios.post('/api/partners/court-closures', {
+      await api.post('/partners/court-closures', {
         court_id: selectedClosureCourt.id,
         start_date: courtClosureForm.start_date,
         end_date: courtClosureForm.end_date,
@@ -463,7 +463,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
   async function removeCourtClosure(closureId) {
     setIsSavingClosure(true);
     try {
-      await axios.delete(`/api/partners/court-closures/${closureId}`);
+      await api.delete(`/partners/court-closures/${closureId}`);
       await fetchSlots();
       setShowCourtClosureModal(false);
     } catch (err) {
@@ -479,7 +479,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     if (validRules.length === 0) return alert('Define al menos una regla semanal con dias y horarios.');
     setIsGeneratingSlots(true);
     try {
-      await axios.put('/api/partners/availability-rules', {
+      await api.put('/partners/availability-rules', {
         court_ids: planningForm.court_ids,
         rules: validRules.map((rule) => ({
           weekdays: rule.weekdays,
@@ -508,7 +508,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     if (!name) return;
     setIsSavingCourt(true);
     try {
-      await axios.post('/api/partners/courts', { name, type: newCourtType });
+      await api.post('/partners/courts', { name, type: newCourtType });
       if (onVenueRefresh) await onVenueRefresh();
       setShowAddCourtModal(false);
       setNewCourtName('');
@@ -524,7 +524,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     if (!venueForm.name.trim()) return alert('Ingresa el nombre de la sede.');
     setIsSavingVenue(true);
     try {
-      await axios.put('/api/partners/venue', {
+      await api.put('/partners/venue', {
         name: venueForm.name,
         address: venueForm.address,
         phone: venueForm.phone,
@@ -545,7 +545,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     formData.append('image', file);
     setIsUploadingVenueImage(true);
     try {
-      const response = await axios.post('/api/partners/venue/image', formData, {
+      const response = await api.post('/partners/venue/image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setVenueForm((prev) => ({ ...prev, image: response.data.image || prev.image }));
@@ -578,7 +578,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     if (!bookingForm.occupant_name.trim()) return alert('Ingresa el nombre del cliente.');
     setIsSavingBooking(true);
     try {
-      await axios.put(`/api/partners/slots/${selectedSlot.id}/occupy`, bookingForm);
+      await api.put(`/partners/slots/${selectedSlot.id}/occupy`, bookingForm);
       await fetchSlots();
       setShowBookingModal(false);
       setReturnToCourtAgenda(false);
@@ -783,7 +783,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
             <section className="venueEditor glass">
               <div className="venuePreview">
                 <div className="venueImageFrame">
-                  {venueForm.image ? <img src={venueForm.image} alt={venueForm.name || 'Sede'} /> : <div className="venueImagePlaceholder"><ImageIcon size={28} /></div>}
+                  {venueForm.image ? <img src={resolveAssetUrl(venueForm.image)} alt={venueForm.name || 'Sede'} /> : <div className="venueImagePlaceholder"><ImageIcon size={28} /></div>}
                 </div>
                 <label className="uploadButton">
                   <input type="file" accept="image/*" onChange={(e) => handleVenueImageSelected(e.target.files?.[0])} />

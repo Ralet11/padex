@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   // Text
   text: { fontWeight: '700', textAlign: 'center' },
   text_primary: { color: colors.white },
-  text_secondary: { color: colors.text },
+  text_secondary: { color: colors.text.primary },
   text_outline: { color: colors.primary },
   text_ghost: { color: colors.primary },
   text_danger: { color: colors.white },

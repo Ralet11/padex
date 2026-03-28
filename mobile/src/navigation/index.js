@@ -24,13 +24,19 @@ import LeaderboardScreen from '../screens/leaderboard/LeaderboardScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+const NAV_BAR_COLOR = '#0A0E1A';
+const AUTH_STATUS_BAR_COLOR = '#050510';
 
 const screenOptions = {
-  headerStyle: { backgroundColor: colors.header },
-  headerTintColor: colors.text,
-  headerTitleStyle: { fontWeight: '700', color: colors.text },
+  headerStyle: { backgroundColor: colors.background },
+  headerTintColor: colors.text.primary,
+  headerTitleStyle: { fontWeight: '700', color: colors.text.primary },
   headerShadowVisible: false,
   contentStyle: { backgroundColor: colors.background },
+  navigationBarColor: NAV_BAR_COLOR,
+  navigationBarHidden: false,
+  statusBarColor: colors.background,
+  statusBarTranslucent: false,
 };
 
 const authScreenOptions = {
@@ -40,6 +46,10 @@ const authScreenOptions = {
   gestureEnabled: true,
   fullScreenGestureEnabled: true,
   contentStyle: { backgroundColor: colors.background },
+  navigationBarColor: NAV_BAR_COLOR,
+  navigationBarHidden: false,
+  statusBarColor: AUTH_STATUS_BAR_COLOR,
+  statusBarTranslucent: false,
 };
 
 const navigationTheme = {
@@ -126,7 +136,15 @@ export default function AppNavigator() {
   if (loading) {
     return (
       <NavigationContainer theme={navigationTheme}>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+            navigationBarColor: NAV_BAR_COLOR,
+            navigationBarHidden: false,
+            statusBarColor: NAV_BAR_COLOR,
+            statusBarTranslucent: false,
+          }}
+        >
           <Stack.Screen name="Splash" component={SplashScreen} />
         </Stack.Navigator>
       </NavigationContainer>
@@ -135,7 +153,15 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          navigationBarColor: NAV_BAR_COLOR,
+          navigationBarHidden: false,
+          statusBarColor: colors.background,
+          statusBarTranslucent: false,
+        }}
+      >
         {user ? (
           <Stack.Screen name="Main" component={MainTabs} />
         ) : (

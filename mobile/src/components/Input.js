@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   iconLeft: { paddingLeft: 14 },
   input: {
     flex: 1,
-    color: colors.text,
+    color: colors.text.primary,
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 13,

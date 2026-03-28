@@ -1,8 +1,33 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.36:3000';
+const DEFAULT_API_URL = 'https://apidev.insiderbookings.com';
+const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+
+function normalizeBaseUrl(value) {
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  return trimmed.replace(/\/+$/, '');
+}
+
+const configApiUrl = normalizeBaseUrl(Constants.expoConfig?.extra?.apiUrl);
+
+export const BASE_URL = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_URL) || configApiUrl || DEFAULT_API_URL;
 export const API_URL = `${BASE_URL}/api`;
+
+export function resolveAssetUrl(uri) {
+  if (!uri) return null;
+  if (/^(?:[a-z]+:)?\/\//i.test(uri) || uri.startsWith('data:') || uri.startsWith('blob:')) {
+    return uri;
+  }
+
+  const normalizedPath = uri.startsWith('/') ? uri : `/${uri}`;
+  return `${BASE_URL}${normalizedPath}`;
+}
 
 const api = axios.create({
   baseURL: API_URL,
@@ -13,32 +38,38 @@ api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
-  console.log('[api] request', {
-    method: config.method,
-    url: `${config.baseURL || ''}${config.url || ''}`,
-    hasToken: Boolean(token),
-  });
+  if (isDev) {
+    console.log('[api] request', {
+      method: config.method,
+      url: `${config.baseURL || ''}${config.url || ''}`,
+      hasToken: Boolean(token),
+    });
+  }
 
   return config;
 });
 
 api.interceptors.response.use(
   (res) => {
-    console.log('[api] response', {
-      method: res.config?.method,
-      url: `${res.config?.baseURL || ''}${res.config?.url || ''}`,
-      status: res.status,
-    });
+    if (isDev) {
+      console.log('[api] response', {
+        method: res.config?.method,
+        url: `${res.config?.baseURL || ''}${res.config?.url || ''}`,
+        status: res.status,
+      });
+    }
     return res;
   },
   (err) => {
-    console.warn('[api] error', {
-      method: err.config?.method,
-      url: `${err.config?.baseURL || ''}${err.config?.url || ''}`,
-      status: err.response?.status || null,
-      error: err.response?.data?.error || err.message,
-      requestId: err.response?.headers?.['x-request-id'] || null,
-    });
+    if (isDev) {
+      console.warn('[api] error', {
+        method: err.config?.method,
+        url: `${err.config?.baseURL || ''}${err.config?.url || ''}`,
+        status: err.response?.status || null,
+        error: err.response?.data?.error || err.message,
+        requestId: err.response?.headers?.['x-request-id'] || null,
+      });
+    }
 
     const msg = err.response?.data?.error || err.message || 'Error de red';
     return Promise.reject(new Error(msg));

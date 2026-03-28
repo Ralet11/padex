@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Mail, Lock, ChevronRight, Trophy, Smartphone, ShieldCheck } from 'lucide-react';
+import { api } from '../../lib/runtime';
+import ballMark from '../../assets/ball-mark.png';
 
 const Landing = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -12,7 +13,7 @@ const Landing = ({ onLogin }) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password });
       onLogin(response.data); // Pass user and token
     } catch (err) {
       alert('Error en el login: ' + (err.response?.data?.error || 'Credenciales inválidas'));
@@ -26,7 +27,9 @@ const Landing = ({ onLogin }) => {
       {/* Left Side: Content */}
       <section className="landing-content">
         <div className="branding">
-          <div className="logo-icon neon-glow"></div>
+          <span className="brand-badge">
+            <img src={ballMark} alt="Padex" className="brand-ball" />
+          </span>
           <span>PADEX <strong>PARTNERS</strong></span>
         </div>
 
@@ -134,7 +137,24 @@ const Landing = ({ onLogin }) => {
         }
 
         .branding { display: flex; align-items: center; gap: 12px; margin-bottom: 80px; position: absolute; top: 64px; }
-        .logo-icon { width: 14px; height: 14px; border-radius: 50%; background: var(--primary); }
+        .brand-badge {
+          width: 34px;
+          height: 34px;
+          border-radius: 12px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+        }
+
+        .brand-ball {
+          width: 24px;
+          height: 24px;
+          object-fit: contain;
+          filter: drop-shadow(0 4px 12px rgba(192, 255, 0, 0.22));
+        }
         
         .hero-text h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 24px; }
         .hero-text h1 span { color: var(--primary); }

@@ -1,4 +1,18 @@
-export const darkTheme = {
+function withLegacyAliases(theme) {
+    return {
+        ...theme,
+        bg: theme.background,
+        card: theme.surface,
+        cardBorder: theme.borderLight,
+        error: theme.danger,
+        header: theme.background,
+        textMuted: theme.text.tertiary,
+        textSecondary: theme.text.secondary,
+        white: '#FFFFFF',
+    };
+}
+
+export const darkTheme = withLegacyAliases({
     background: '#000000',
     surface: '#000000', // Flat, relies on borders
     surfaceHighlight: '#111111',
@@ -26,9 +40,9 @@ export const darkTheme = {
 
     overlay: 'rgba(0, 0, 0, 0.8)',
     glassMask: 'rgba(0, 0, 0, 0.6)',
-};
+});
 
-export const lightTheme = {
+export const lightTheme = withLegacyAliases({
     background: '#FFFFFF',
     surface: '#FFFFFF',
     surfaceHighlight: '#F4F4F5',
@@ -56,7 +70,7 @@ export const lightTheme = {
 
     overlay: 'rgba(0, 0, 0, 0.4)',
     glassMask: 'rgba(255, 255, 255, 0.8)',
-};
+});
 
 // Set Light theme as default for a "Clear, clean, and minimalist" vibe.
 export const defaultColors = lightTheme;

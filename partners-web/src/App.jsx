@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Onboarding from './features/onboarding/Onboarding';
 import Dashboard from './features/dashboard/Dashboard';
 import Landing from './features/auth/Landing';
+import HomeLanding from './features/home/HomeLanding';
 import AdminDashboard from './features/admin/AdminDashboard';
+import { api, ROUTER_MODE, setAuthToken } from './lib/runtime';
 import './index.css';
+
+const RouterComponent = ROUTER_MODE === 'browser' ? BrowserRouter : HashRouter;
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -18,7 +21,7 @@ function App() {
   const loadVenue = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoadingVenue(true);
     try {
-      const response = await axios.get('/api/partners/venue');
+      const response = await api.get('/partners/venue');
       setVenue(response.data.venue);
     } catch (err) {
       console.error('No venue found or error');
@@ -29,12 +32,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Set axios Auth header whenever user changes
-    if (user?.token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${user.token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
+    setAuthToken(user?.token);
 
     if (user && user.role === 'partner') {
       loadVenue();
@@ -55,7 +53,7 @@ function App() {
     setUser(null);
     setVenue(null);
     localStorage.removeItem('padex_user');
-    delete axios.defaults.headers.common['Authorization'];
+    setAuthToken(null);
   };
 
   const handleOnboardingComplete = (venueData) => {
@@ -77,7 +75,7 @@ function App() {
   };
 
   return (
-    <Router>
+    <RouterComponent>
       <Routes>
         <Route 
           path="/socios" 
@@ -125,10 +123,9 @@ function App() {
           } 
         />
 
-        {/* Redirect root to /socios */}
-        <Route path="/" element={<Navigate to="/socios" replace />} />
+        <Route path="/" element={<HomeLanding />} />
       </Routes>
-    </Router>
+    </RouterComponent>
   );
 }
 

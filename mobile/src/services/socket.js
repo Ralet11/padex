@@ -2,6 +2,7 @@ import { io } from 'socket.io-client';
 import { BASE_URL } from './api';
 
 let socket = null;
+const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
 export function initSocket(token) {
   if (socket) socket.disconnect();
@@ -13,9 +14,11 @@ export function initSocket(token) {
     reconnectionDelay: 1000,
   });
 
-  socket.on('connect', () => console.log('🔌 Socket conectado'));
-  socket.on('disconnect', () => console.log('🔌 Socket desconectado'));
-  socket.on('connect_error', (err) => console.log('🔌 Error socket:', err.message));
+  if (isDev) {
+    socket.on('connect', () => console.log('[socket] connected'));
+    socket.on('disconnect', () => console.log('[socket] disconnected'));
+    socket.on('connect_error', (err) => console.log('[socket] error', err.message));
+  }
 
   return socket;
 }

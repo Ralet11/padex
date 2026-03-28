@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, TouchableOpacity, Alert, Image
+  Platform, TouchableOpacity, Alert
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +14,7 @@ import { Typography } from '../../components/ui/Typography';
 import { Card } from '../../components/ui/Card';
 import { Mail, Lock } from 'lucide-react-native';
 import { screenPadding } from '../../theme/layout';
+import BrandLockup from '../../components/branding/BrandLockup';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
@@ -51,6 +53,7 @@ export default function LoginScreen({ navigation }) {
       colors={['#050510', colors.background, colors.background]}
       style={styles.gradient}
     >
+      <StatusBar style="light" hidden={false} />
       <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -73,18 +76,11 @@ export default function LoginScreen({ navigation }) {
             contentInsetAdjustmentBehavior="always"
           >
             <View style={styles.header}>
-              <View style={[styles.logoContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary }]}>
-                <Image
-                  source={require('../../../assets/padexicon.jpeg')}
-                  style={{ width: 92, height: 92, borderRadius: 28 }}
-                  resizeMode="cover"
-                />
-              </View>
+              <BrandLockup />
               <Typography
                 variant="bodyMedium"
-                color="primary"
                 align="center"
-                style={{ marginTop: spacing.sm, opacity: 0.72 }}
+                style={[styles.headerCopy, { marginTop: spacing.md }]}
               >
                 Inicia sesion para jugar
               </Typography>
@@ -154,17 +150,9 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-  header: { alignItems: 'center', marginBottom: 20, paddingTop: 8 },
-  card: { marginTop: 32 },
-  logoContainer: {
-    padding: 5,
-    borderWidth: 2,
-    borderRadius: 32,
-    shadowColor: '#bdf101',
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 10,
-  },
+  header: { alignItems: 'center', marginBottom: 16, paddingTop: 12 },
+  headerCopy: { color: 'rgba(255, 255, 255, 0.76)' },
+  card: { marginTop: 24 },
   divider: { flexDirection: 'row', alignItems: 'center' },
   line: { flex: 1, height: 1 },
   registerBtn: { alignItems: 'center' },

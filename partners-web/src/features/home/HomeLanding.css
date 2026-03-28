@@ -1,0 +1,1247 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
+
+.homeLanding {
+  --home-bg: #050608;
+  --home-bg-soft: #0d1014;
+  --home-surface: rgba(15, 18, 23, 0.78);
+  --home-surface-strong: rgba(19, 22, 28, 0.94);
+  --home-border: rgba(255, 255, 255, 0.08);
+  --home-border-strong: rgba(255, 255, 255, 0.14);
+  --home-text: #f4f7fb;
+  --home-muted: #a6adb9;
+  --home-primary: #d4ff33;
+  --home-primary-soft: rgba(212, 255, 51, 0.12);
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(212, 255, 51, 0.14), transparent 30%),
+    radial-gradient(circle at 85% 12%, rgba(88, 122, 255, 0.12), transparent 22%),
+    linear-gradient(180deg, #06070a 0%, #08090c 42%, #0a0c10 100%);
+  color: var(--home-text);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+.homeLanding::before,
+.homeLanding::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.homeLanding::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 120px 120px;
+  mask-image: radial-gradient(circle at center, black 38%, transparent 82%);
+  opacity: 0.2;
+}
+
+.homeLanding::after {
+  background:
+    linear-gradient(180deg, rgba(5, 6, 8, 0.1) 0%, rgba(5, 6, 8, 0.72) 100%);
+}
+
+@keyframes homeRevealUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes homeRevealScale {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes homeFloatUp {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes homeFloatDown {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(12px);
+  }
+}
+
+.homeAmbient {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(18px);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.homeAmbientLeft {
+  top: 110px;
+  left: -120px;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(212, 255, 51, 0.2), transparent 70%);
+}
+
+.homeAmbientRight {
+  right: -120px;
+  bottom: 100px;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(108, 132, 255, 0.16), transparent 72%);
+}
+
+.homeRevealUp {
+  animation: homeRevealUp 0.6s ease both;
+}
+
+.homeRevealScale {
+  animation: homeRevealScale 0.6s ease 0.08s both;
+}
+
+.homeFloatUp {
+  animation: homeFloatUp 7s ease-in-out infinite;
+}
+
+.homeFloatDown {
+  animation: homeFloatDown 8s ease-in-out infinite;
+}
+
+.homeShell {
+  position: relative;
+  z-index: 1;
+  width: min(1280px, calc(100% - 48px));
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 28px 0 56px;
+}
+
+.homeHeader > *,
+.homeHero > *,
+.homeFeatureGrid > *,
+.homeDownloadSection > *,
+.homePhoneHeader > * {
+  min-width: 0;
+}
+
+.homeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--home-border);
+  border-radius: 22px;
+  background: rgba(10, 12, 16, 0.72);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+
+.homeBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--home-text);
+  text-decoration: none;
+}
+
+.homeBrandBadge {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(15, 18, 23, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.homeBrandBall {
+  width: 32px;
+  height: 32px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 18px rgba(212, 255, 51, 0.32));
+}
+
+.homeBrandWord,
+.homeHeroCopy h1,
+.homeSectionIntro h2,
+.homeDownloadCopy h2,
+.homeFeatureCard h3,
+.homePhoneCard strong,
+.homeOrbitCard strong {
+  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+}
+
+.homeBrandWord {
+  font-size: 1rem;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+}
+
+.homeHeaderActions,
+.homeActionRow,
+.homeDownloadActions,
+.homeStoreRow,
+.homeTagRow,
+.homeProofRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.homeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  min-height: 52px;
+  padding: 0 22px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.homeButton:focus-visible {
+  outline: 2px solid rgba(212, 255, 51, 0.55);
+  outline-offset: 3px;
+}
+
+.homeButton:hover {
+  transform: translateY(-2px);
+}
+
+.homeButtonPrimary {
+  color: #071006;
+  background: linear-gradient(135deg, #c7ff25 0%, #e4ff74 100%);
+  box-shadow: 0 14px 34px rgba(194, 255, 37, 0.24);
+}
+
+.homeButtonPrimary:hover {
+  box-shadow: 0 16px 38px rgba(194, 255, 37, 0.32);
+}
+
+.homeButtonGhost,
+.homeButtonOutline {
+  color: var(--home-text);
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--home-border);
+}
+
+.homeButtonGhost:hover,
+.homeButtonOutline:hover {
+  border-color: rgba(212, 255, 51, 0.32);
+  color: var(--home-primary);
+  background: rgba(212, 255, 51, 0.06);
+}
+
+.homeMain {
+  display: grid;
+  gap: 28px;
+  padding-top: 22px;
+}
+
+.homeHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(420px, 0.94fr);
+  align-items: center;
+  gap: 52px;
+  padding: 24px 0 4px;
+}
+
+.homeHeroCopy {
+  max-width: 660px;
+}
+
+.homeHeroBadge {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--home-border);
+  background: rgba(12, 14, 18, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.homeEyebrow,
+.homeFeatureEyebrow,
+.homePhoneHeader span,
+.homePhoneHeader small,
+.homeOrbitCard span {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.homeEyebrow,
+.homeFeatureEyebrow {
+  color: var(--home-primary);
+}
+
+.homeHeroBadgeText,
+.homePhoneHeader span,
+.homePhoneHeader small,
+.homeOrbitCard span {
+  color: rgba(244, 247, 251, 0.62);
+}
+
+.homeHeroBadgeDivider {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.homeHeroCopy h1 {
+  margin-top: 24px;
+  font-size: clamp(3.6rem, 6.6vw, 6.2rem);
+  line-height: 0.92;
+  letter-spacing: -0.065em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.homeLead,
+.homeSectionIntro p,
+.homeFeatureCard p,
+.homeDownloadCopy p,
+.homePhoneCard p,
+.homeDownloadNote span {
+  color: var(--home-muted);
+  line-height: 1.75;
+}
+
+.homeLead {
+  max-width: 58ch;
+  margin-top: 24px;
+  font-size: 1.08rem;
+  overflow-wrap: anywhere;
+}
+
+.homeActionRow {
+  margin-top: 32px;
+}
+
+.homeProofRow {
+  max-width: 620px;
+  margin-top: 24px;
+}
+
+.homeProofItem,
+.homeStoreBadge,
+.homeTagRow span,
+.homePhoneTicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.homeProofItem svg,
+.homeFeatureIcon svg,
+.homeDownloadNote svg {
+  color: var(--home-primary);
+}
+
+.homeProofItem span,
+.homeTagRow span,
+.homeStoreBadge,
+.homePhoneTicker {
+  color: var(--home-text);
+  font-size: 0.92rem;
+}
+
+.homeHeroVisual {
+  position: relative;
+  min-height: 720px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.homeStageGlow {
+  position: absolute;
+  inset: 14% 10% 18%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(212, 255, 51, 0.18), transparent 44%),
+    radial-gradient(circle at 80% 20%, rgba(94, 112, 255, 0.16), transparent 30%);
+  filter: blur(18px);
+}
+
+.homePhoneShell,
+.homeFeatureCard,
+.homeDownloadSection,
+.homeOrbitCard {
+  border: 1px solid var(--home-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(12, 14, 18, 0.78);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 32px 70px rgba(0, 0, 0, 0.32);
+}
+
+.homePhoneShell {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 450px);
+  max-width: 100%;
+  padding: 16px;
+  border-radius: 36px;
+}
+
+.homePhoneTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 14px;
+}
+
+.homePhoneTitle {
+  color: rgba(244, 247, 251, 0.56);
+  letter-spacing: 0.18em;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.homePhoneDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--home-primary);
+  box-shadow: 0 0 20px rgba(212, 255, 51, 0.38);
+}
+
+.homePhoneScreen {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top, rgba(212, 255, 51, 0.06), transparent 22%),
+    linear-gradient(180deg, #0d1014 0%, #13171d 100%);
+}
+
+.homePhoneCard {
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.homePhoneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.homePhoneCard strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.65rem;
+  letter-spacing: -0.05em;
+  overflow-wrap: anywhere;
+}
+
+.homePhoneCard p {
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+
+.homePhoneTicker {
+  justify-content: flex-start;
+  padding-inline: 16px;
+  font-size: 0.88rem;
+}
+
+.homeTickerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--home-primary);
+  box-shadow: 0 0 16px rgba(212, 255, 51, 0.42);
+}
+
+.homeTagRow {
+  margin-top: 16px;
+}
+
+.homeTagRow span,
+.homeStoreBadge {
+  background: var(--home-primary-soft);
+  border-color: rgba(212, 255, 51, 0.18);
+  color: var(--home-primary);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.homeTagRowMuted span {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--home-text);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.homeLeagueBar {
+  width: 100%;
+  height: 10px;
+  margin-top: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.homeLeagueProgress {
+  width: 72%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a1ea00 0%, #d4ff33 100%);
+}
+
+.homeOrbitCard {
+  position: absolute;
+  z-index: 2;
+  max-width: 100%;
+  border-radius: 26px;
+}
+
+.homeOrbitCardTop {
+  top: 84px;
+  left: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px;
+  width: min(280px, 52%);
+  padding: 14px;
+}
+
+.homeOrbitBallWrap {
+  width: 62px;
+  height: 62px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.homeOrbitBallWrap img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.homeOrbitCard strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1rem;
+  line-height: 1.35;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+
+.homeOrbitCardBottom {
+  right: -12px;
+  bottom: 78px;
+  width: min(320px, 58%);
+  padding: 18px 20px;
+}
+
+.homeFeatureSection {
+  display: grid;
+  gap: 18px;
+  padding-top: 4px;
+}
+
+.homeSectionIntro {
+  max-width: 760px;
+}
+
+.homeSectionIntro h2 {
+  margin-top: 14px;
+  font-size: clamp(2rem, 3.1vw, 3.2rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.homeSectionIntro p {
+  max-width: 64ch;
+  margin-top: 14px;
+}
+
+.homeFeatureGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.homeFeatureCard {
+  position: relative;
+  grid-column: span 3;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  padding: 24px;
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.homeFeatureCardReveal {
+  opacity: 0;
+  animation: homeRevealUp 0.55s ease both;
+}
+
+.homeFeatureCard::before,
+.homeDownloadSection::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 255, 51, 0.3), transparent);
+}
+
+.homeFeatureCard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top right, rgba(212, 255, 51, 0.08), transparent 28%);
+  pointer-events: none;
+}
+
+.homeFeatureCardWide {
+  grid-column: span 6;
+}
+
+.homeFeatureIcon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.homeFeatureEyebrow {
+  display: block;
+  margin-top: 22px;
+}
+
+.homeFeatureCard h3 {
+  margin-top: 10px;
+  font-size: 1.56rem;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
+}
+
+.homeFeatureCard p {
+  margin-top: 12px;
+  max-width: 42ch;
+  overflow-wrap: anywhere;
+}
+
+.homeDownloadSection {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  padding: 28px;
+  border-radius: 30px;
+  scroll-margin-top: 24px;
+}
+
+.homeDownloadCopy h2 {
+  margin-top: 14px;
+  font-size: clamp(2.4rem, 4vw, 4rem);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+  max-width: 11ch;
+  overflow-wrap: anywhere;
+}
+
+.homeDownloadCopy p {
+  max-width: 52ch;
+  margin-top: 14px;
+  overflow-wrap: anywhere;
+}
+
+.homeDownloadPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.homeDownloadNotes {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.homeDownloadNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.homeDownloadNote:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.homeDownloadActions {
+  margin-top: 24px;
+}
+
+@media (max-width: 1180px) {
+  .homeHero {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .homeHeroCopy {
+    max-width: none;
+  }
+
+  .homeHeroVisual {
+    min-height: 660px;
+  }
+
+  .homeFeatureCard,
+  .homeFeatureCardWide {
+    grid-column: span 6;
+  }
+
+  .homeDownloadSection {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 960px) {
+  .homeAmbient {
+    opacity: 0.48;
+  }
+
+  .homeHero {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .homeHeroCopy {
+    max-width: none;
+  }
+
+  .homeHeroBadge {
+    max-width: 560px;
+  }
+
+  .homeProofRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+    width: 100%;
+  }
+
+  .homeProofItem {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .homeHeroVisual {
+    min-height: auto;
+    padding-top: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .homeStageGlow {
+    inset: 16% 14% 20%;
+  }
+
+  .homePhoneShell {
+    width: min(100%, 420px);
+    margin: 0 auto;
+  }
+
+  .homeOrbitCard {
+    position: static;
+    width: min(100%, 420px);
+    margin: 12px auto 0;
+    animation: none;
+  }
+
+  .homeOrbitCardTop {
+    top: auto;
+    left: auto;
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .homeOrbitCardBottom {
+    right: auto;
+    bottom: auto;
+    width: min(100%, 420px);
+  }
+
+  .homeFeatureGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .homeFeatureCard,
+  .homeFeatureCardWide {
+    grid-column: auto;
+  }
+
+  .homeDownloadSection {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 880px) {
+  .homeShell {
+    width: min(1280px, calc(100% - 28px));
+    padding-top: 16px;
+  }
+
+  .homeHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .homeHeaderActions {
+    width: 100%;
+  }
+
+  .homeHeaderActions .homeButton {
+    flex: 1 1 180px;
+  }
+
+  .homeHeroCopy h1 {
+    font-size: clamp(3rem, 11vw, 4.8rem);
+  }
+
+  .homeHeroVisual {
+    min-height: auto;
+    padding: 22px 0 10px;
+  }
+
+  .homeOrbitCardTop {
+    top: 18px;
+    left: 12px;
+  }
+
+  .homeOrbitCardBottom {
+    right: 10px;
+    bottom: 24px;
+  }
+}
+
+@media (max-width: 720px) {
+  .homeShell {
+    width: min(1280px, calc(100% - 24px));
+  }
+
+  .homeHeaderActions,
+  .homeActionRow,
+  .homeDownloadActions {
+    width: 100%;
+  }
+
+  .homeActionRow .homeButton,
+  .homeHeaderActions .homeButton,
+  .homeDownloadActions .homeButton {
+    flex: 1 1 100%;
+  }
+
+  .homeHeader {
+    gap: 16px;
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .homeBrand {
+    gap: 12px;
+  }
+
+  .homeBrandBadge {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+  }
+
+  .homeBrandBall {
+    width: 28px;
+    height: 28px;
+  }
+
+  .homeBrandWord {
+    font-size: 0.9rem;
+    letter-spacing: 0.14em;
+  }
+
+  .homeMain {
+    gap: 24px;
+    padding-top: 18px;
+  }
+
+  .homeHero {
+    gap: 24px;
+    padding-top: 12px;
+  }
+
+  .homeHeroBadge {
+    width: 100%;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 22px;
+  }
+
+  .homeHeroBadgeDivider {
+    display: none;
+  }
+
+  .homeHeroCopy h1 {
+    margin-top: 18px;
+    font-size: clamp(2.8rem, 13vw, 4rem);
+    line-height: 0.94;
+    letter-spacing: -0.055em;
+  }
+
+  .homeLead {
+    margin-top: 18px;
+    font-size: 0.98rem;
+    line-height: 1.65;
+  }
+
+  .homeActionRow {
+    margin-top: 24px;
+  }
+
+  .homeProofRow {
+    margin-top: 18px;
+  }
+
+  .homeProofItem,
+  .homePhoneTicker,
+  .homeStoreBadge,
+  .homeTagRow span {
+    width: 100%;
+    text-align: center;
+  }
+
+  .homeProofRow {
+    grid-template-columns: 1fr;
+  }
+
+  .homeProofItem {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .homePhoneShell {
+    width: 100%;
+    padding: 12px;
+    border-radius: 28px;
+  }
+
+  .homePhoneScreen {
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .homePhoneCard {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .homePhoneCard strong {
+    font-size: clamp(1.24rem, 6.8vw, 1.5rem);
+  }
+
+  .homePhoneTicker {
+    justify-content: center;
+    padding-inline: 14px;
+  }
+
+  .homeOrbitCard {
+    position: static;
+    width: 100%;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .homeOrbitCardTop {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .homeOrbitBallWrap {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+  }
+
+  .homeOrbitBallWrap img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .homeFeatureGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .homeFeatureCard,
+  .homeFeatureCardWide {
+    grid-column: auto;
+    padding: 20px;
+    border-radius: 24px;
+  }
+
+  .homeFeatureCard h3 {
+    font-size: 1.34rem;
+    line-height: 1.1;
+  }
+
+  .homeDownloadSection {
+    gap: 20px;
+    padding: 24px;
+    border-radius: 24px;
+  }
+
+  .homeDownloadCopy h2 {
+    max-width: none;
+    font-size: clamp(2rem, 10vw, 3rem);
+  }
+
+  .homeDownloadPanel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .homeDownloadNote {
+    padding: 12px 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .homeLanding {
+    overflow-x: clip;
+  }
+
+  .homeAmbient,
+  .homeStageGlow {
+    display: none;
+  }
+
+  .homeShell {
+    width: calc(100% - 20px);
+    padding-bottom: 34px;
+  }
+
+  .homeHeaderActions {
+    gap: 10px;
+  }
+
+  .homeButton {
+    min-height: 48px;
+    padding: 0 16px;
+    border-radius: 14px;
+    font-size: 0.95rem;
+  }
+
+  .homeEyebrow,
+  .homeFeatureEyebrow,
+  .homePhoneHeader span,
+  .homePhoneHeader small,
+  .homeOrbitCard span {
+    letter-spacing: 0.14em;
+    font-size: 0.68rem;
+  }
+
+  .homeHeroCopy h1 {
+    font-size: clamp(2.35rem, 12.4vw, 3.2rem);
+    letter-spacing: -0.05em;
+  }
+
+  .homeHeroVisual {
+    padding-top: 10px;
+  }
+
+  .homePhoneTop {
+    padding: 4px 4px 12px;
+  }
+
+  .homePhoneTitle {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+  }
+
+  .homePhoneScreen {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .homePhoneCard {
+    padding: 14px;
+  }
+
+  .homePhoneHeader {
+    gap: 10px;
+  }
+
+  .homePhoneCard strong {
+    margin-top: 8px;
+    font-size: 1.18rem;
+    line-height: 1.08;
+  }
+
+  .homePhoneCard p,
+  .homePhoneTicker,
+  .homeProofItem span,
+  .homeFeatureCard p,
+  .homeDownloadCopy p,
+  .homeDownloadNote span {
+    font-size: 0.92rem;
+    line-height: 1.58;
+  }
+
+  .homeFeatureSection {
+    gap: 14px;
+  }
+
+  .homeSectionIntro h2 {
+    font-size: clamp(1.65rem, 9vw, 2.2rem);
+    line-height: 1.02;
+  }
+
+  .homeFeatureCard {
+    padding: 18px;
+  }
+
+  .homeFeatureEyebrow {
+    margin-top: 18px;
+  }
+
+  .homeFeatureCard h3 {
+    font-size: 1.2rem;
+  }
+
+  .homeTagRow {
+    gap: 8px;
+  }
+
+  .homeTagRow span,
+  .homeStoreBadge {
+    padding: 9px 12px;
+    font-size: 0.78rem;
+  }
+
+  .homeDownloadSection {
+    padding: 18px;
+  }
+
+  .homeDownloadCopy h2 {
+    font-size: clamp(1.8rem, 10vw, 2.5rem);
+    line-height: 1;
+  }
+
+  .homeDownloadPanel {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .homeShell {
+    width: calc(100% - 16px);
+  }
+
+  .homeHeader {
+    padding: 10px;
+  }
+
+  .homeHeroBadge {
+    padding: 10px 12px;
+  }
+
+  .homeHeroCopy h1 {
+    font-size: clamp(2.05rem, 11.8vw, 2.8rem);
+  }
+
+  .homeLead,
+  .homePhoneCard p,
+  .homeFeatureCard p,
+  .homeDownloadCopy p,
+  .homeDownloadNote span {
+    font-size: 0.9rem;
+  }
+
+  .homeProofItem,
+  .homePhoneTicker,
+  .homeStoreBadge,
+  .homeTagRow span {
+    padding: 10px 12px;
+  }
+}

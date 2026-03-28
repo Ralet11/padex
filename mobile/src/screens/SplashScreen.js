@@ -1,16 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme';
+import BrandLockup from '../components/branding/BrandLockup';
 
 export default function SplashScreen() {
   return (
-    <LinearGradient colors={[colors.bg, '#0D1E35']} style={styles.container}>
+    <LinearGradient colors={['#0A0E1A', '#0D1E35']} style={styles.container}>
+      <StatusBar style="light" hidden={false} />
       <View style={styles.content}>
-        <Text style={styles.icon}>{'\u{1F3BE}'}</Text>
-        <Text style={styles.title}>Padex</Text>
-        <Text style={styles.subtitle}>Tu comunidad de padel</Text>
-        <ActivityIndicator color={colors.primary} size="large" style={styles.loader} />
+        <BrandLockup
+          size="lg"
+          kicker="PARTIDOS. RANKING. LIGA."
+          subtitle="La app para encontrar partidos, organizar tu juego y seguir tu progreso."
+        />
+        <ActivityIndicator color="#A7CE29" size="large" style={styles.loader} />
       </View>
     </LinearGradient>
   );
@@ -19,8 +23,5 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  icon: { fontSize: 72, marginBottom: 16 },
-  title: { fontSize: 36, fontWeight: '900', color: colors.text, letterSpacing: -1 },
-  subtitle: { fontSize: 16, color: colors.textSecondary, marginTop: 6, marginBottom: 40 },
-  loader: { marginTop: 20 },
+  loader: { marginTop: 36 },
 });

@@ -5,7 +5,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
-import { BASE_URL, courtsAPI, matchesAPI } from '../../services/api';
+import { courtsAPI, matchesAPI, resolveAssetUrl } from '../../services/api';
 import { getSocket, joinVenueAvailability, leaveVenueAvailability } from '../../services/socket';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
@@ -15,17 +15,18 @@ import Input from '../../components/Input';
 import { screenPadding } from '../../theme/layout';
 import { RANK_ARRAY, getRankByTier } from '../../utils/rankings';
 
+const INITIAL_FORM = { title: '', description: '' };
+const INITIAL_CATEGORY_RULE = {
+  open_category: true,
+  min_category_tier: 4,
+  max_category_tier: 7,
+};
+
 function formatLocalDate(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function toAbsoluteImage(uri) {
-  if (!uri) return null;
-  if (uri.startsWith('http')) return uri;
-  return `${BASE_URL}${uri}`;
 }
 
 function getPlayerPrice(totalCourtPrice, orderIndex) {
@@ -46,12 +47,8 @@ export default function CreateMatchScreen({ navigation }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [dateSummaries, setDateSummaries] = useState([]);
   const [selectedDateSummary, setSelectedDateSummary] = useState(null);
-  const [form, setForm] = useState({ title: '', description: '' });
-  const [categoryRule, setCategoryRule] = useState({
-    open_category: true,
-    min_category_tier: 4,
-    max_category_tier: 7,
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [categoryRule, setCategoryRule] = useState(INITIAL_CATEGORY_RULE);
   const [venueSearch, setVenueSearch] = useState('');
   const [weekPickerVisible, setWeekPickerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -293,6 +290,23 @@ export default function CreateMatchScreen({ navigation }) {
     }
   }, [findFirstAvailableDate, selectedDate, selectedVenue]);
 
+  const resetCreateMatchFlow = useCallback(() => {
+    setStep(1);
+    setSelectedVenue(null);
+    setActiveVenue(null);
+    setSelectedSlot(null);
+    setSelectedDate(formatLocalDate(new Date()));
+    setWeekOffset(0);
+    setDateSummaries([]);
+    setSelectedDateSummary(null);
+    setSlots([]);
+    setForm(INITIAL_FORM);
+    setCategoryRule(INITIAL_CATEGORY_RULE);
+    setVenueSearch('');
+    setWeekPickerVisible(false);
+    setSearchingNextDate(false);
+  }, []);
+
   async function handleCreate() {
     if (!selectedVenue) return Alert.alert('Error', 'Selecciona una sede');
     if (!selectedSlot) return Alert.alert('Error', 'Selecciona un turno');
@@ -310,10 +324,13 @@ export default function CreateMatchScreen({ navigation }) {
         max_category_tier: categoryRule.open_category ? undefined : categoryRule.max_category_tier,
       });
 
+      const createdMatchId = res.data.match.id;
+      resetCreateMatchFlow();
+
       Alert.alert('Partido creado', 'Tu partido ya esta visible en el buscador', [
         {
           text: 'Ver partido',
-          onPress: () => navigation.navigate('Home', { screen: 'MatchDetail', params: { matchId: res.data.match.id } }),
+          onPress: () => navigation.navigate('Home', { screen: 'MatchDetail', params: { matchId: createdMatchId } }),
         },
         { text: 'Ok', style: 'cancel' },
       ]);
@@ -477,8 +494,8 @@ export default function CreateMatchScreen({ navigation }) {
                   onPress={() => setSelectedVenue(venue)}
                   activeOpacity={0.7}
                 >
-                  {toAbsoluteImage(venue.image) ? (
-                    <Image source={{ uri: toAbsoluteImage(venue.image) }} style={styles.optionImage} />
+                  {resolveAssetUrl(venue.image) ? (
+                    <Image source={{ uri: resolveAssetUrl(venue.image) }} style={styles.optionImage} />
                   ) : (
                     <View style={[styles.optionIcon, { backgroundColor: isSelected ? colors.text.primary : colors.surfaceHighlight }]}>
                       <Feather name="map-pin" size={18} color={isSelected ? colors.accent : colors.text.tertiary} />
@@ -674,8 +691,8 @@ export default function CreateMatchScreen({ navigation }) {
 
             <View style={[styles.summaryCard, { borderColor: colors.borderLight, backgroundColor: colors.surfaceHighlight }]}>
               <View style={styles.summaryVenueHeader}>
-                {toAbsoluteImage(selectedVenue?.image) ? (
-                  <Image source={{ uri: toAbsoluteImage(selectedVenue.image) }} style={styles.summaryVenueImage} />
+                {resolveAssetUrl(selectedVenue?.image) ? (
+                  <Image source={{ uri: resolveAssetUrl(selectedVenue.image) }} style={styles.summaryVenueImage} />
                 ) : (
                   <View style={[styles.summaryVenueImage, styles.summaryVenueFallback, { backgroundColor: colors.background }]}>
                     <Feather name="map-pin" size={16} color={colors.text.secondary} />
@@ -933,8 +950,8 @@ export default function CreateMatchScreen({ navigation }) {
             onPress={() => setActiveVenue(null)}
           />
           <View style={[styles.modalCard, { backgroundColor: colors.background }]}>
-            {toAbsoluteImage(activeVenue?.image) ? (
-              <Image source={{ uri: toAbsoluteImage(activeVenue.image) }} style={styles.modalImage} />
+            {resolveAssetUrl(activeVenue?.image) ? (
+              <Image source={{ uri: resolveAssetUrl(activeVenue.image) }} style={styles.modalImage} />
             ) : (
               <View style={[styles.modalImage, styles.modalImageFallback, { backgroundColor: colors.surfaceHighlight }]}>
                 <Feather name="map-pin" size={28} color={colors.text.secondary} />

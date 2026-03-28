@@ -1,9 +1,10 @@
 import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
-import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, View } from 'react-native';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import AppNavigator from './src/navigation';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import {
   useFonts,
@@ -20,6 +21,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import SystemBars from './src/components/system/SystemBars';
 
 // Prevent splash screen from hiding until fonts load
 SplashScreen.preventAutoHideAsync();
@@ -47,11 +49,22 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <StatusBar style="light" backgroundColor="#0a0a0c" />
-        <AppNavigator />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <View style={styles.appShell}>
+            <SystemBars />
+            <AppNavigator />
+          </View>
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  appShell: {
+    flex: 1,
+    backgroundColor: '#0A0E1A',
+  },
+});

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, MapPin, Building2, Phone, Mail, ChevronRight, Check, Lock, Shield } from 'lucide-react';
-import axios from 'axios';
+import { api } from '../../lib/runtime';
 
 const Input = ({ label, icon: Icon, value, onChange, placeholder, type = "text" }) => (
   <div className="input-group">
@@ -55,7 +55,7 @@ const Onboarding = ({ onComplete }) => {
 
   const handleSubmit = async () => {
     try {
-      const response = await axios.post('/api/partners/onboarding', {
+      const response = await api.post('/partners/onboarding', {
         venue_name: formData.venue_name,
         venue_address: formData.venue_address,
         venue_phone: formData.venue_phone,

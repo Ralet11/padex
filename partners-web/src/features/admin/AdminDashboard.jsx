@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
   Users, 
   Search, 
@@ -14,6 +13,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { api } from '../../lib/runtime';
 
 const AdminDashboard = ({ onLogout }) => {
   const [partners, setPartners] = useState([]);
@@ -31,7 +31,7 @@ const AdminDashboard = ({ onLogout }) => {
   useEffect(() => {
     const fetchPartners = async () => {
       try {
-        const response = await axios.get('/api/partners/all');
+        const response = await api.get('/partners/all');
         setPartners(response.data.partners);
       } catch (err) {
         console.error('Error fetching partners:', err);
@@ -51,7 +51,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   const handleCreatePartner = async () => {
     try {
-      const response = await axios.post('/api/partners/create', {
+      const response = await api.post('/partners/create', {
         name: newPartner.name,
         email: newPartner.email
       });

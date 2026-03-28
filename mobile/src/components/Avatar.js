@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { BASE_URL } from '../services/api';
+import { resolveAssetUrl } from '../services/api';
 import { colors } from '../theme';
 
 import { RANK_CONFIG } from '../utils/rankings';
@@ -17,11 +17,7 @@ export default function Avatar({ uri, name, size = 44, category, showBadge = fal
     ? name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
     : '?';
 
-  const avatarUri = uri
-    ? uri.startsWith('http')
-      ? uri
-      : `${BASE_URL}${uri}`
-    : null;
+  const avatarUri = resolveAssetUrl(uri);
 
   return (
     <View style={[styles.wrapper, { width: size, height: size }, style]}>
