@@ -26,6 +26,11 @@ const Venue = sequelize.define('Venue', {
         type: DataTypes.STRING,
         allowNull: true,
     },
+    services: {
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        allowNull: false,
+        defaultValue: [],
+    },
     manager_id: {
         type: DataTypes.INTEGER,
         allowNull: false,

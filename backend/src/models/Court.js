@@ -18,6 +18,14 @@ const Court = sequelize.define('Court', {
     image: {
         type: DataTypes.STRING,
     },
+    surface: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    enclosure: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
     venue_id: {
         type: DataTypes.INTEGER,
         allowNull: false,

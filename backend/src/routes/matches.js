@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const { Match, Slot, Court, Venue, User, MatchPlayer } = require('../models');
 const auth = require('../middleware/auth');
 const { notifyCourtByWhatsApp, notifyAdminWhatsApp } = require('../services/notifications');
-const { calculateStarsEarned, categoryFromStars } = require('../services/elo');
+const { calculateStarsEarned, categoryFromStars, nameFromTier } = require('../services/elo');
 const { dateToStr } = require('../services/availability');
 const { emitVenueAvailabilityUpdate } = require('../services/realtime');
 
@@ -35,6 +35,28 @@ function normalizeCategoryRule({ open_category, min_category_tier, max_category_
 function isUserAllowedByCategoryRule(match, userTier) {
   if (match.open_category) return true;
   return userTier >= match.min_category_tier && userTier <= match.max_category_tier;
+}
+
+function parseCategoryTierFilter(value) {
+  if (value === undefined || value === null) return null;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized || normalized === 'todos') return null;
+
+  const numericTier = Number(normalized.replace(/[^\d]/g, ''));
+  if (Number.isInteger(numericTier) && numericTier >= 1 && numericTier <= 7) {
+    return numericTier;
+  }
+
+  for (let tier = 1; tier <= 7; tier += 1) {
+    const tierName = nameFromTier(tier).toLowerCase();
+    const shortName = tierName.split(' ')[0];
+    if (normalized === tierName || normalized === shortName) {
+      return tier;
+    }
+  }
+
+  return null;
 }
 
 async function canReopenSlot(slotId) {
@@ -87,6 +109,7 @@ async function emitSlotAvailabilityUpdate(slotId, reason) {
 router.get('/', auth, async (req, res) => {
   try {
     const { date, court_id } = req.query;
+    const categoryTier = parseCategoryTierFilter(req.query.category_tier || req.query.category);
 
     const whereRules = { status: 'open' };
     const slotWhereRules = {};
@@ -104,6 +127,17 @@ router.get('/', auth, async (req, res) => {
 
     if (court_id) {
       slotWhereRules.court_id = court_id;
+    }
+
+    if (categoryTier) {
+      whereRules[Op.or] = [
+        { open_category: true },
+        {
+          open_category: false,
+          min_category_tier: { [Op.lte]: categoryTier },
+          max_category_tier: { [Op.gte]: categoryTier },
+        },
+      ];
     }
 
     const matches = await Match.findAll({

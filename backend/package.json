@@ -5,7 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "seed:demo": "node src/scripts/seedDemoData.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

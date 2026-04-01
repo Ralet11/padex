@@ -3,10 +3,43 @@ const { Court, Slot, Venue, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const auth = require('../middleware/auth');
 const { ensureSlotsForRange, todayDateStr, parseDateOnly, dateToStr } = require('../services/availability');
+const {
+  normalizeVenueServices,
+  normalizeCourtSurface,
+  normalizeCourtEnclosure,
+  courtMatchesFilters,
+  summarizeCourtMetadata,
+} = require('../constants/venueFilters');
 
 const router = express.Router();
 
-async function getVenueDateSummaries(venueId, from, to) {
+function parseVenueFilters(query = {}) {
+  return {
+    q: String(query.q || '').trim(),
+    services: normalizeVenueServices(query.services),
+    surface: normalizeCourtSurface(query.surface),
+    enclosure: normalizeCourtEnclosure(query.enclosure),
+  };
+}
+
+async function getFilteredCourtIds(venueId, { surface = null, enclosure = null } = {}) {
+  if (!surface && !enclosure) return null;
+
+  const courts = await Court.findAll({
+    where: {
+      venue_id: venueId,
+      ...(surface ? { surface } : {}),
+      ...(enclosure ? { enclosure } : {}),
+    },
+    attributes: ['id'],
+  });
+
+  return courts.map((court) => court.id);
+}
+
+async function getVenueDateSummaries(venueId, from, to, courtIds = null) {
+  if (Array.isArray(courtIds) && courtIds.length === 0) return [];
+
   const [rows] = await sequelize.query(`
     SELECT
       s.date,
@@ -18,11 +51,12 @@ async function getVenueDateSummaries(venueId, from, to) {
     JOIN courts c ON c.id = s.court_id
     LEFT JOIN matches m ON m.slot_id = s.id
     WHERE c.venue_id = :venueId
+      ${courtIds ? 'AND c.id IN (:courtIds)' : ''}
       AND s.date BETWEEN :from AND :to
     GROUP BY s.date
     ORDER BY s.date ASC
   `, {
-    replacements: { venueId, from, to }
+    replacements: courtIds ? { venueId, from, to, courtIds } : { venueId, from, to }
   });
 
   return rows.map((row) => ({
@@ -49,6 +83,8 @@ router.get('/', auth, async (req, res) => {
         name: court.name,
         type: court.type,
         image: court.image,
+        surface: court.surface,
+        enclosure: court.enclosure,
         venue_id: court.venue_id,
         venue_name: court.Venue?.name || null,
         address: court.Venue?.address || null,
@@ -62,23 +98,65 @@ router.get('/', auth, async (req, res) => {
 // GET /api/courts/venues
 router.get('/venues', auth, async (req, res) => {
   try {
+    const filters = parseVenueFilters(req.query);
     const venues = await Venue.findAll({
-      include: [{ model: Court, attributes: ['id'] }],
+      where: filters.q ? {
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${filters.q}%` } },
+          { address: { [Op.iLike]: `%${filters.q}%` } },
+        ]
+      } : undefined,
+      include: [{
+        model: Court,
+        attributes: ['id', 'name', 'type', 'image', 'surface', 'enclosure'],
+      }],
       order: [['name', 'ASC']]
     });
 
+    const filteredVenues = venues.filter((venue) => {
+      const venueServices = Array.isArray(venue.services) ? venue.services : [];
+      const servicesMatch = filters.services.every((service) => venueServices.includes(service));
+      const courtsMatch = !filters.surface && !filters.enclosure
+        ? true
+        : (venue.Courts || []).some((court) => courtMatchesFilters(court, filters));
+
+      return servicesMatch && courtsMatch;
+    });
+
     res.json({
-      venues: venues.map((venue) => ({
-        id: venue.id,
-        name: venue.name,
-        address: venue.address,
-        phone: venue.phone,
-        image: venue.image,
-        price_per_slot: venue.price_per_slot,
-        court_count: venue.Courts?.length || 0,
-      }))
+      venues: filteredVenues.map((venue) => {
+        const allCourts = venue.Courts || [];
+        const matchingCourts = filters.surface || filters.enclosure
+          ? allCourts.filter((court) => courtMatchesFilters(court, filters))
+          : allCourts;
+
+        return {
+          ...summarizeCourtMetadata(matchingCourts),
+          id: venue.id,
+          name: venue.name,
+          address: venue.address,
+          phone: venue.phone,
+          image: venue.image,
+          price_per_slot: venue.price_per_slot,
+          services: Array.isArray(venue.services) ? venue.services : [],
+          courts: matchingCourts.map((court) => ({
+            id: court.id,
+            name: court.name,
+            type: court.type,
+            image: court.image,
+            surface: court.surface,
+            enclosure: court.enclosure,
+          })),
+          court_count: matchingCourts.length,
+          matching_court_count: matchingCourts.length,
+          total_court_count: allCourts.length,
+        };
+      })
     });
   } catch (err) {
+    if (err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error(err);
     res.status(500).json({ error: 'Server error retrieving venues' });
   }
@@ -88,6 +166,7 @@ router.get('/venues', auth, async (req, res) => {
 router.get('/venues/:id/slots', auth, async (req, res) => {
   try {
     const { date } = req.query;
+    const filters = parseVenueFilters(req.query);
     const venue = await Venue.findByPk(req.params.id);
     if (!venue) return res.status(404).json({ error: 'Sede no encontrada' });
 
@@ -96,8 +175,24 @@ router.get('/venues/:id/slots', auth, async (req, res) => {
     toDate.setDate(toDate.getDate() + (date ? 0 : 6));
     const to = date || dateToStr(toDate);
 
+    const filteredCourtIds = await getFilteredCourtIds(venue.id, filters);
+    if (Array.isArray(filteredCourtIds) && filteredCourtIds.length === 0) {
+      return res.json({
+        slots: [],
+        summary: {
+          date: from,
+          total_slots: 0,
+          available_slots: 0,
+          occupied_slots: 0,
+          has_match: 0,
+          has_public_availability: false,
+        },
+        date_summaries: []
+      });
+    }
+
     await ensureSlotsForRange(venue.id, from, to);
-    const dateSummaries = await getVenueDateSummaries(venue.id, from, to);
+    const dateSummaries = await getVenueDateSummaries(venue.id, from, to, filteredCourtIds);
 
     const query = `
       SELECT
@@ -111,13 +206,16 @@ router.get('/venues/:id/slots', auth, async (req, res) => {
       JOIN courts c ON c.id = s.court_id
       LEFT JOIN matches m ON m.slot_id = s.id
       WHERE c.venue_id = :venueId
+        ${filteredCourtIds ? 'AND c.id IN (:courtIds)' : ''}
         AND s.is_available = true
         ${date ? 'AND s.date = :date' : 'AND s.date >= :from'}
       GROUP BY s.date, s.time
       ORDER BY s.date ASC, s.time ASC
     `;
 
-    const replacements = { venueId: req.params.id, from };
+    const replacements = filteredCourtIds
+      ? { venueId: venue.id, from, courtIds: filteredCourtIds }
+      : { venueId: venue.id, from };
     if (date) replacements.date = date;
 
     const [slots] = await sequelize.query(query, { replacements });
@@ -142,6 +240,9 @@ router.get('/venues/:id/slots', auth, async (req, res) => {
       date_summaries: dateSummaries
     });
   } catch (err) {
+    if (err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error(err);
     res.status(500).json({ error: 'Server error retrieving venue slots' });
   }
@@ -149,6 +250,7 @@ router.get('/venues/:id/slots', auth, async (req, res) => {
 
 router.get('/venues/:id/availability-summary', auth, async (req, res) => {
   try {
+    const filters = parseVenueFilters(req.query);
     const venue = await Venue.findByPk(req.params.id);
     if (!venue) return res.status(404).json({ error: 'Sede no encontrada' });
 
@@ -159,12 +261,20 @@ router.get('/venues/:id/availability-summary', auth, async (req, res) => {
       return dateToStr(endDate);
     })();
 
+    const filteredCourtIds = await getFilteredCourtIds(venue.id, filters);
+    if (Array.isArray(filteredCourtIds) && filteredCourtIds.length === 0) {
+      return res.json({ date_summaries: [] });
+    }
+
     await ensureSlotsForRange(venue.id, from, to);
 
     res.json({
-      date_summaries: await getVenueDateSummaries(venue.id, from, to)
+      date_summaries: await getVenueDateSummaries(venue.id, from, to, filteredCourtIds)
     });
   } catch (err) {
+    if (err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error(err);
     res.status(500).json({ error: 'Server error retrieving venue availability summary' });
   }
@@ -183,6 +293,8 @@ router.get('/:id', auth, async (req, res) => {
         name: court.name,
         type: court.type,
         image: court.image,
+        surface: court.surface,
+        enclosure: court.enclosure,
         venue_id: court.venue_id,
         venue_name: court.Venue?.name || null,
         address: court.Venue?.address || null,

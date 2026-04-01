@@ -1,5 +1,4 @@
 const { Venue, Court, Slot, User } = require('./models');
-const bcrypt = require('bcryptjs');
 const { dateToStr } = require('./services/availability');
 
 async function seedDatabase() {
@@ -13,10 +12,8 @@ async function seedDatabase() {
 
         console.log('[seeder] Seeding init venue and courts...');
 
-        // Create Admin User
-        const adminEmail = 'admin@padex.com';
-        const [adminUser] = await User.findOrCreate({
-            where: { email: adminEmail },
+        await User.findOrCreate({
+            where: { email: 'admin@padex.com' },
             defaults: {
                 name: 'Super Admin',
                 password: 'Padex124356879!',
@@ -25,55 +22,53 @@ async function seedDatabase() {
         });
 
         const venue = await Venue.create({
-            name: 'Pádel Club Central',
+            name: 'Padel Club Central',
             address: 'Calle Falsa 123, BUE',
             phone: '+5491112345678',
-            manager_id: 1 // Assuming first user exists or will be created
+            price_per_slot: 12000,
+            services: ['wifi', 'vestuario', 'estacionamiento'],
+            manager_id: 1
         });
 
-        const courtsData = [
+        const createdCourts = await Court.bulkCreate([
             {
                 venue_id: venue.id,
                 name: 'Cancha Central (Cristal)',
                 type: 'Cristal',
-                indoor: true,
-                price_per_hour: 5000
+                surface: 'sintetico',
+                enclosure: 'cubierta'
             },
             {
                 venue_id: venue.id,
                 name: 'Cancha 2 (Muro)',
                 type: 'Muro',
-                indoor: false,
-                price_per_hour: 3000
+                surface: 'cemento',
+                enclosure: 'descubierta'
             },
             {
                 venue_id: venue.id,
-                name: 'Cancha 3 (Panorámica)',
+                name: 'Cancha 3 (Panoramica)',
                 type: 'Cristal',
-                indoor: true,
-                price_per_hour: 6000
+                surface: 'parquet',
+                enclosure: 'cubierta'
             }
-        ];
-
-        const createdCourts = await Court.bulkCreate(courtsData);
+        ]);
 
         for (const court of createdCourts) {
-            // Seed today and tomorrow
-            for (let dayOffset = 0; dayOffset < 2; dayOffset++) {
+            for (let dayOffset = 0; dayOffset < 2; dayOffset += 1) {
                 const date = new Date();
                 date.setDate(date.getDate() + dayOffset);
                 const dateStr = dateToStr(date);
 
-                const slotsData = [
-                    { court_id: court.id, date: dateStr, time: '18:00', duration: 90, price: court.price_per_hour * 1.5, is_available: true },
-                    { court_id: court.id, date: dateStr, time: '19:30', duration: 90, price: court.price_per_hour * 1.5, is_available: true },
-                    { court_id: court.id, date: dateStr, time: '21:00', duration: 90, price: court.price_per_hour * 1.5, is_available: true },
-                ];
-                await Slot.bulkCreate(slotsData);
+                await Slot.bulkCreate([
+                    { court_id: court.id, date: dateStr, time: '18:00', duration: 90, price: venue.price_per_slot, is_available: true },
+                    { court_id: court.id, date: dateStr, time: '19:30', duration: 90, price: venue.price_per_slot, is_available: true },
+                    { court_id: court.id, date: dateStr, time: '21:00', duration: 90, price: venue.price_per_slot, is_available: true },
+                ]);
             }
         }
 
-        console.log('[seeder] 🎾 Seed successful!');
+        console.log('[seeder] Seed successful!');
     } catch (err) {
         console.error('[seeder] Error:', err);
     }

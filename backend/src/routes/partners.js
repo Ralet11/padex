@@ -15,6 +15,11 @@ const {
     ensureSlotsForRange,
 } = require('../services/availability');
 const { emitVenueAvailabilityUpdate } = require('../services/realtime');
+const {
+    normalizeVenueServices,
+    normalizeCourtSurface,
+    normalizeCourtEnclosure,
+} = require('../constants/venueFilters');
 
 const router = express.Router();
 
@@ -49,6 +54,7 @@ router.post('/onboarding', auth, async (req, res) => {
             address: venue_address,
             phone: venue_phone || '',
             price_per_slot: 0,
+            services: [],
             manager_id: user.id
         });
 
@@ -59,8 +65,8 @@ router.post('/onboarding', auth, async (req, res) => {
                 venue_id: venue.id,
                 name: `Cancha ${i}`,
                 type: i === 1 ? 'Cristal' : 'Muro',
-                indoor: true,
-                price_per_hour: 0
+                surface: null,
+                enclosure: null
             });
         }
         await Court.bulkCreate(courts);
@@ -103,11 +109,14 @@ router.put('/venue', auth, async (req, res) => {
         const venue = await Venue.findOne({ where: { manager_id: req.user.id } });
         if (!venue) return res.status(404).json({ error: 'No se encontro sede para este usuario' });
 
-        const { name, address, phone, image, price_per_slot } = req.body;
+        const { name, address, phone, image, price_per_slot, services } = req.body;
 
         const normalizedPricePerSlot = price_per_slot !== undefined
             ? Math.max(0, Number(price_per_slot) || 0)
             : venue.price_per_slot;
+        const normalizedServices = services !== undefined
+            ? normalizeVenueServices(services)
+            : (Array.isArray(venue.services) ? venue.services : []);
 
         await venue.update({
             name: (name || '').trim() || venue.name,
@@ -115,6 +124,7 @@ router.put('/venue', auth, async (req, res) => {
             phone: phone !== undefined ? String(phone).trim() : venue.phone,
             price_per_slot: normalizedPricePerSlot,
             image: image !== undefined ? String(image).trim() : venue.image,
+            services: normalizedServices,
         });
 
         const courts = await Court.findAll({
@@ -138,6 +148,9 @@ router.put('/venue', auth, async (req, res) => {
 
         res.json({ venue });
     } catch (err) {
+        if (err.status === 400) {
+            return res.status(400).json({ error: err.message });
+        }
         console.error(err);
         res.status(500).json({ error: 'Error actualizando datos de la sede' });
     }
@@ -176,7 +189,7 @@ router.get('/slots', auth, async (req, res) => {
             include: [{
                 model: Court,
                 where: { venue_id: venue.id },
-                attributes: ['id', 'name', 'type']
+                attributes: ['id', 'name', 'type', 'surface', 'enclosure']
             }],
             where: {
                 date: {
@@ -367,7 +380,7 @@ router.get('/court-closures', auth, async (req, res) => {
                 start_date: { [Op.lte]: to },
                 end_date: { [Op.gte]: from }
             },
-            include: [{ model: Court, attributes: ['id', 'name', 'type'] }],
+            include: [{ model: Court, attributes: ['id', 'name', 'type', 'surface', 'enclosure'] }],
             order: [['start_date', 'ASC'], ['end_date', 'ASC']]
         });
 
@@ -458,23 +471,69 @@ router.delete('/court-closures/:id', auth, async (req, res) => {
 
 router.post('/courts', auth, async (req, res) => {
     try {
-        const { name, type, indoor, price_per_hour } = req.body;
+        const { name, type, image, surface, enclosure } = req.body;
         const venue = await Venue.findOne({ where: { manager_id: req.user.id } });
 
         if (!venue) return res.status(403).json({ error: 'No autorizado o sede no encontrada' });
+        if (!String(name || '').trim()) {
+            return res.status(400).json({ error: 'Debes indicar un nombre para la cancha' });
+        }
 
         const court = await Court.create({
             venue_id: venue.id,
-            name,
-            type,
-            indoor,
-            price_per_hour
+            name: String(name).trim(),
+            type: String(type || '').trim() || 'Cristal',
+            image: image !== undefined ? String(image).trim() : null,
+            surface: normalizeCourtSurface(surface),
+            enclosure: normalizeCourtEnclosure(enclosure),
         });
 
+        emitVenueAvailabilityUpdate({ venueId: venue.id, reason: 'court_created' });
         res.status(201).json({ court });
     } catch (err) {
+        if (err.status === 400) {
+            return res.status(400).json({ error: err.message });
+        }
         console.error(err);
         res.status(500).json({ error: 'Error creando cancha' });
+    }
+});
+
+router.put('/courts/:id', auth, async (req, res) => {
+    try {
+        const venue = await Venue.findOne({ where: { manager_id: req.user.id } });
+        if (!venue) return res.status(403).json({ error: 'No autorizado o sede no encontrada' });
+
+        const court = await Court.findOne({
+            where: {
+                id: req.params.id,
+                venue_id: venue.id,
+            }
+        });
+        if (!court) return res.status(404).json({ error: 'Cancha no encontrada' });
+
+        const { name, type, image, surface, enclosure } = req.body;
+        const nextName = String(name !== undefined ? name : court.name || '').trim();
+        if (!nextName) {
+            return res.status(400).json({ error: 'Debes indicar un nombre para la cancha' });
+        }
+
+        await court.update({
+            name: nextName,
+            type: String(type !== undefined ? type : court.type || '').trim() || 'Cristal',
+            image: image !== undefined ? String(image).trim() : court.image,
+            surface: normalizeCourtSurface(surface !== undefined ? surface : court.surface),
+            enclosure: normalizeCourtEnclosure(enclosure !== undefined ? enclosure : court.enclosure),
+        });
+
+        emitVenueAvailabilityUpdate({ venueId: venue.id, reason: 'court_updated' });
+        res.json({ court });
+    } catch (err) {
+        if (err.status === 400) {
+            return res.status(400).json({ error: err.message });
+        }
+        console.error(err);
+        res.status(500).json({ error: 'Error actualizando cancha' });
     }
 });
 
