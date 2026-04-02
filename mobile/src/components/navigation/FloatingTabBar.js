@@ -50,6 +50,12 @@ const TabIcon = ({ name, iconName, isFocused, onPress }) => {
 export const FloatingTabBar = ({ state, descriptors, navigation }) => {
     const { colors, isDark } = useTheme();
     const insets = useSafeAreaInsets();
+    const focusedRouteName = state.routes[state.index]?.name;
+
+    if (focusedRouteName === 'Crear') {
+        return null;
+    }
+
     const bottomOffset = Math.max(insets.bottom, spacing.sm);
     const solidBackground = isDark ? 'rgba(8,8,8,0.96)' : 'rgba(255,255,255,0.985)';
     const insetMask = isDark ? '#000000' : colors.background;

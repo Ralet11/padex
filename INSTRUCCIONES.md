@@ -122,3 +122,10 @@ ADMIN_WHATSAPP=+549XXXXXXXXXX
 | GET | /api/social/connections | Mis compañeros |
 | GET | /api/messages/:connId | Ver mensajes |
 | POST | /api/ratings | Calificar jugador |
+
+### Contratos canónicos a considerar
+
+- `match.state` pasa a ser la fuente principal del ciclo de vida (`open`, `reserved`, `completed`, etc.) y `status` queda solo por compatibilidad.
+- `slot.state` representa el estado operativo del turno (`available`, `reserved`, `blocked`, `completed`, etc.) y convive con `is_available` mientras se alinean las superficies.
+- Los perfiles de jugador exponen reputación canónica en `reputation_avg_score` y `reputation_ratings_count`, manteniendo `avg_rating`/`total_ratings` como fallback histórico.
+- Los cierres competitivos pueden devolver `canonical_completion` y deltas competitivos por jugador para reflejar progreso y resultado en mobile.

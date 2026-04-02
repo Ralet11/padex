@@ -10,6 +10,12 @@ const AvailabilityException = require('./AvailabilityException');
 const CourtClosure = require('./CourtClosure');
 const Match = require('./Match');
 const MatchPlayer = require('./MatchPlayer');
+const League = require('./League');
+const Season = require('./Season');
+const CompetitiveStanding = require('./CompetitiveStanding');
+const CompetitiveResult = require('./CompetitiveResult');
+const ReputationProfile = require('./ReputationProfile');
+const ReputationRating = require('./ReputationRating');
 const Connection = require('./Connection');
 const Message = require('./Message');
 const Rating = require('./Rating');
@@ -62,6 +68,49 @@ MatchPlayer.belongsTo(Match, { foreignKey: 'match_id' });
 
 User.hasMany(MatchPlayer, { foreignKey: 'user_id' });
 MatchPlayer.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+
+// League / Season / Standing
+League.hasMany(Season, { foreignKey: 'league_id', as: 'Seasons' });
+Season.belongsTo(League, { foreignKey: 'league_id', as: 'League' });
+
+League.hasMany(User, { foreignKey: 'league_id', as: 'Players' });
+User.belongsTo(League, { foreignKey: 'league_id', as: 'League' });
+
+Season.hasMany(User, { foreignKey: 'season_id', as: 'Players' });
+User.belongsTo(Season, { foreignKey: 'season_id', as: 'Season' });
+
+League.hasMany(CompetitiveStanding, { foreignKey: 'league_id', as: 'Standings' });
+CompetitiveStanding.belongsTo(League, { foreignKey: 'league_id', as: 'League' });
+
+Season.hasMany(CompetitiveStanding, { foreignKey: 'season_id', as: 'Standings' });
+CompetitiveStanding.belongsTo(Season, { foreignKey: 'season_id', as: 'Season' });
+
+User.hasMany(CompetitiveStanding, { foreignKey: 'user_id', as: 'CompetitiveStandings' });
+CompetitiveStanding.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+
+Season.hasMany(Match, { foreignKey: 'competitive_season_id', as: 'Matches' });
+Match.belongsTo(Season, { foreignKey: 'competitive_season_id', as: 'CompetitiveSeason' });
+
+Match.hasOne(CompetitiveResult, { foreignKey: 'match_id', as: 'CompetitiveResult' });
+CompetitiveResult.belongsTo(Match, { foreignKey: 'match_id', as: 'Match' });
+
+Season.hasMany(CompetitiveResult, { foreignKey: 'season_id', as: 'CompetitiveResults' });
+CompetitiveResult.belongsTo(Season, { foreignKey: 'season_id', as: 'Season' });
+
+User.hasOne(ReputationProfile, { foreignKey: 'user_id', as: 'ReputationProfile' });
+ReputationProfile.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+
+ReputationProfile.hasMany(ReputationRating, { foreignKey: 'profile_id', as: 'Ratings' });
+ReputationRating.belongsTo(ReputationProfile, { foreignKey: 'profile_id', as: 'Profile' });
+
+User.hasMany(ReputationRating, { foreignKey: 'rater_id', as: 'SubmittedReputationRatings' });
+ReputationRating.belongsTo(User, { foreignKey: 'rater_id', as: 'Rater' });
+
+User.hasMany(ReputationRating, { foreignKey: 'rated_id', as: 'ReceivedReputationRatings' });
+ReputationRating.belongsTo(User, { foreignKey: 'rated_id', as: 'Rated' });
+
+Match.hasMany(ReputationRating, { foreignKey: 'match_id', as: 'ReputationRatings' });
+ReputationRating.belongsTo(Match, { foreignKey: 'match_id', as: 'Match' });
 
 // Connection <-> User (Requester / Addressee)
 User.hasMany(Connection, { foreignKey: 'requester_id', as: 'SentConnections' });
@@ -116,6 +165,12 @@ module.exports = {
     CourtClosure,
     Match,
     MatchPlayer,
+    League,
+    Season,
+    CompetitiveStanding,
+    CompetitiveResult,
+    ReputationProfile,
+    ReputationRating,
     Connection,
     Message,
     Rating,

@@ -1,3 +1,6 @@
+// TODO: DEPRECATED — migrate to components/ui/Input.js
+// This legacy Input uses static theme import and is not theme-aware.
+// Screens should import Input from '../../components/ui' instead.
 import React, { useState } from 'react';
 import { View, TextInput, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, radius, spacing } from '../theme';

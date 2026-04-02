@@ -24,7 +24,7 @@ function App() {
       const response = await api.get('/partners/venue');
       setVenue(response.data.venue);
     } catch (err) {
-      console.error('No venue found or error');
+      console.error('No venue found or error', err);
       setVenue(null);
     } finally {
       if (!silent) setLoadingVenue(false);

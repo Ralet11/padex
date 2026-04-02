@@ -1,3 +1,6 @@
+// TODO: DEPRECATED — migrate to components/ui/Avatar.js
+// This legacy Avatar uses static theme import and is not theme-aware.
+// Screens should import Avatar from '../../components/ui' instead.
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { resolveAssetUrl } from '../services/api';

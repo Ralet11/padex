@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+﻿import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../theme/ThemeContext';
@@ -8,42 +8,56 @@ import { typography } from '../../theme/typography';
 import api from '../../services/api';
 import { RANK_ARRAY, getRankByTier } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
-
-
+import { getProgressionPoints } from '../../utils/domain';
+import { Skeleton, InlineError } from '../../components/ui';
 
 export default function LeaderboardScreen({ navigation }) {
     const { colors, isDark } = useTheme();
     const [selectedCategory, setSelectedCategory] = useState(7);
     const [leaderboard, setLeaderboard] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState(null);
+
+    const seasonLabel = leaderboard[0]?.competitive_context?.season_id
+        ? `TEMPORADA ${leaderboard[0].competitive_context.season_id}`
+        : 'TEMPORADA';
 
     useEffect(() => {
         fetchLeaderboard();
     }, [selectedCategory]);
 
     const fetchLeaderboard = async () => {
-        setLoading(true);
+        setError(null);
         try {
             const response = await api.get(`/leaderboard/${selectedCategory}`);
             setLeaderboard(response.data.leaderboard);
-        } catch (error) {
-            console.error('Error fetching leaderboard:', error);
+        } catch (err) {
+            setError(err.message || 'Error al cargar el ranking');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
+    };
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchLeaderboard();
     };
 
     const renderHeader = () => (
         <View style={styles.header}>
             <View style={styles.topRow}>
-                <TouchableOpacity 
+                <TouchableOpacity
                     onPress={() => navigation.goBack()}
                     style={[styles.backButton, { backgroundColor: colors.surfaceHighlight }]}
+                    accessibilityLabel="Volver"
+                    accessibilityRole="button"
                 >
                     <Feather name="chevron-left" size={24} color={colors.text.primary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.seasonBadge}>
-                    <Text style={[typography.label, { color: colors.accent }]}>TEMPORADA 1</Text>
+                <TouchableOpacity style={[styles.seasonBadge, { backgroundColor: colors.surface, borderColor: colors.accent + '30' }]} accessibilityLabel={`Temporada: ${seasonLabel}`} accessibilityRole="button">
+                    <Text style={[typography.label, { color: colors.accent }]}>{seasonLabel}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -67,6 +81,9 @@ export default function LeaderboardScreen({ navigation }) {
                                 styles.tab,
                                 selectedCategory === item.id && { backgroundColor: colors.text.primary }
                             ]}
+                            accessibilityLabel={`Categoría ${item.name}`}
+                            accessibilityRole="tab"
+                            accessibilityState={{ selected: selectedCategory === item.id }}
                         >
                             <Text
                                 style={[
@@ -89,9 +106,11 @@ export default function LeaderboardScreen({ navigation }) {
         const isTop3 = index < 3;
         
         return (
-            <TouchableOpacity 
-                style={styles.playerCard}
+            <TouchableOpacity
+                style={[styles.playerCard, { borderBottomColor: colors.borderLight }]}
                 onPress={() => navigation.navigate('PlayerProfile', { userId: item.id })}
+                accessibilityLabel={`Ver perfil de ${item.name}`}
+                accessibilityRole="button"
             >
                 <View style={styles.rankContainer}>
                     <Text 
@@ -114,7 +133,7 @@ export default function LeaderboardScreen({ navigation }) {
                         </View>
                     )}
                     {isTop3 && (
-                        <View style={styles.crown}>
+                        <View style={[styles.crown, { backgroundColor: colors.surface, borderColor: colors.accent }]}>
                             <Feather name="award" size={12} color={colors.accent} />
                         </View>
                     )}
@@ -127,9 +146,9 @@ export default function LeaderboardScreen({ navigation }) {
                     </Text>
                 </View>
 
-                <View style={styles.pointsContainer}>
+                <View style={[styles.pointsContainer, { backgroundColor: colors.surfaceHighlight }]}>
                     <Feather name="star" size={14} color={rank.starColor} style={{ marginRight: 4 }} />
-                    <Text style={[typography.h3, { color: colors.text.primary, fontWeight: '700' }]}>{item.stars}</Text>
+                    <Text style={[typography.h3, { color: colors.text.primary, fontWeight: '700' }]}>{getProgressionPoints(item)}</Text>
                 </View>
             </TouchableOpacity>
         );
@@ -140,8 +159,14 @@ export default function LeaderboardScreen({ navigation }) {
             {renderHeader()}
             
             {loading ? (
-                <View style={styles.center}>
-                    <ActivityIndicator color={colors.accent} size="large" />
+                <View style={[styles.center, { paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.lg }]}>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <Skeleton key={i} width="100%" height={60} radius={radius.md} style={{ marginBottom: spacing.sm }} />
+                    ))}
+                </View>
+            ) : error ? (
+                <View style={[styles.center, { paddingHorizontal: screenPadding.horizontal }]}>
+                    <InlineError message={error} onRetry={fetchLeaderboard} />
                 </View>
             ) : (
                 <FlatList
@@ -149,6 +174,7 @@ export default function LeaderboardScreen({ navigation }) {
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderItem}
                     contentContainerStyle={styles.listContent}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Feather name="info" size={40} color={colors.text.tertiary} />
@@ -193,12 +219,10 @@ const styles = StyleSheet.create({
         fontWeight: '900',
     },
     seasonBadge: {
-        backgroundColor: '#000',
         paddingHorizontal: spacing.sm,
         paddingVertical: 4,
         borderRadius: radius.full,
         borderWidth: 1,
-        borderColor: 'rgba(167, 206, 41, 0.3)',
     },
     categoryTabs: {
         paddingLeft: screenPadding.horizontal,
@@ -223,7 +247,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     rankContainer: {
         width: 40,
@@ -231,7 +254,6 @@ const styles = StyleSheet.create({
     },
     rank: {
         fontWeight: '900',
-        fontSize: 20,
     },
     avatarContainer: {
         position: 'relative',
@@ -253,14 +275,12 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: -6,
         right: -6,
-        backgroundColor: '#000',
         width: 20,
         height: 20,
         borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#A7CE29',
     },
     playerInfo: {
         flex: 1,
@@ -268,7 +288,6 @@ const styles = StyleSheet.create({
     pointsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.03)',
         paddingHorizontal: spacing.sm,
         paddingVertical: 4,
         borderRadius: radius.md,

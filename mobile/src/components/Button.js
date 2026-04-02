@@ -1,3 +1,6 @@
+// TODO: DEPRECATED — migrate to components/ui/Button.js
+// This legacy Button uses static theme import and is not theme-aware.
+// Screens should import Button from '../../components/ui' instead.
 import React from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, View } from 'react-native';
 import { colors, radius, typography } from '../theme';

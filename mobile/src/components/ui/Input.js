@@ -11,7 +11,10 @@ export const Input = ({
     rightIcon,
     secureTextEntry,
     style,
+    containerStyle,
     inputStyle,
+    labelStyle,
+    errorStyle,
     onFocus,
     onBlur,
     ...props
@@ -39,7 +42,7 @@ export const Input = ({
     return (
         <View style={[styles.container, style]}>
             {label && (
-                <Typography variant="captionMedium" color="primary" style={styles.label}>
+                <Typography variant="captionMedium" color="primary" style={[styles.label, labelStyle]}>
                     {label}
                 </Typography>
             )}
@@ -48,10 +51,11 @@ export const Input = ({
                     styles.inputContainer,
                     {
                         backgroundColor: colors.surfaceHighlight,
-                        borderColor: getBorderColor(),
                         borderRadius: radius.md,
                         paddingHorizontal: spacing.md,
-                    }
+                    },
+                    containerStyle,
+                    { borderColor: getBorderColor() },
                 ]}
             >
                 {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
@@ -86,7 +90,7 @@ export const Input = ({
                 ) : null}
             </View>
             {error && (
-                <Typography variant="caption" color="danger" style={styles.error}>
+                <Typography variant="caption" color="danger" style={[styles.error, errorStyle]}>
                     {error}
                 </Typography>
             )}

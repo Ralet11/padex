@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../database');
+const { SLOT_STATE_VALUES, deriveSlotState, isSlotAvailableState } = require('../constants/slotStates');
 
 const Slot = sequelize.define('Slot', {
     id: {
@@ -31,6 +32,11 @@ const Slot = sequelize.define('Slot', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
     },
+    state: {
+        type: DataTypes.ENUM(...SLOT_STATE_VALUES),
+        allowNull: false,
+        defaultValue: 'available',
+    },
     external_id: {
         type: DataTypes.STRING,
         allowNull: true,
@@ -57,6 +63,25 @@ const Slot = sequelize.define('Slot', {
     },
 }, {
     tableName: 'slots',
+    hooks: {
+        beforeValidate: (slot) => {
+            if (slot.changed('state') && slot.state) {
+                slot.is_available = isSlotAvailableState(slot.state);
+                return;
+            }
+
+            slot.state = deriveSlotState({
+                is_available: slot.is_available,
+                booked_externally: slot.booked_externally,
+                occupant_name: slot.occupant_name,
+                occupant_phone: slot.occupant_phone,
+            });
+
+            if (slot.state) {
+                slot.is_available = isSlotAvailableState(slot.state);
+            }
+        }
+    }
 });
 
 module.exports = Slot;

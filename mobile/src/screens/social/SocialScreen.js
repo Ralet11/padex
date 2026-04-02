@@ -12,7 +12,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { spacing, radius, shadows } from '../../theme/spacing';
 import PlayerCard from '../../components/PlayerCard';
-import Button from '../../components/Button';
+import { Button, InlineError, Skeleton, useToast } from '../../components/ui';
 import { getRankByTier } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
 
@@ -21,6 +21,7 @@ const TABS = ['Buscar', 'Compañeros', 'Solicitudes'];
 export default function SocialScreen({ navigation }) {
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
+  const toast = useToast();
 
   const [tab, setTab] = useState('Buscar');
   const [search, setSearch] = useState('');
@@ -29,9 +30,11 @@ export default function SocialScreen({ navigation }) {
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       if (tab === 'Buscar') {
         const res = await socialAPI.players({ q: search || undefined });
@@ -44,7 +47,7 @@ export default function SocialScreen({ navigation }) {
         setPending(res.data.pending);
       }
     } catch (err) {
-      console.error(err);
+      setError(err.message || 'No se pudieron cargar los datos');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,7 +61,7 @@ export default function SocialScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      if (tab === 'CompaÃ±eros') {
+      if (tab === 'Compañeros') {
         fetchData();
       }
     }, [fetchData, tab])
@@ -69,7 +72,7 @@ export default function SocialScreen({ navigation }) {
   async function sendRequest(userId) {
     try {
       await socialAPI.connect(userId);
-      Alert.alert('✅', 'Solicitud enviada');
+      toast.show('Solicitud enviada');
       fetchData();
     } catch (err) {
       Alert.alert('Error', err.message);
@@ -104,6 +107,8 @@ export default function SocialScreen({ navigation }) {
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: colors.text.primary }]}
           onPress={() => sendRequest(player.id)}
+          accessibilityLabel={`Enviar solicitud de conexión a ${player.name}`}
+          accessibilityRole="button"
         >
           <Text style={[typography.captionMedium, { color: colors.accent }]}>Conectar</Text>
         </TouchableOpacity>
@@ -146,6 +151,9 @@ export default function SocialScreen({ navigation }) {
                 key={t}
                 style={[styles.segmentBtn, isActive && { backgroundColor: colors.text.primary, ...shadows.sm }]}
                 onPress={() => setTab(t)}
+                accessibilityLabel={`Pestaña ${t}`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
               >
                 <Text style={[
                   typography.label,
@@ -155,7 +163,7 @@ export default function SocialScreen({ navigation }) {
                   {t}
                 </Text>
                 {t === 'Solicitudes' && pending.length > 0 && (
-                  <View style={styles.badge}><Text style={styles.badgeText}>{pending.length}</Text></View>
+                  <View style={[styles.badge, { backgroundColor: colors.danger }]}><Text style={[styles.badgeText, { color: colors.text.inverse }]}>{pending.length}</Text></View>
                 )}
               </TouchableOpacity>
             );
@@ -176,7 +184,7 @@ export default function SocialScreen({ navigation }) {
               placeholderTextColor={colors.text.tertiary}
             />
             {search ? (
-              <TouchableOpacity onPress={() => setSearch('')} hitSlop={10}>
+              <TouchableOpacity onPress={() => setSearch('')} hitSlop={10} accessibilityLabel="Limpiar búsqueda" accessibilityRole="button">
                 <Feather name="x-circle" size={18} color={colors.text.tertiary} />
               </TouchableOpacity>
             ) : null}
@@ -186,7 +194,19 @@ export default function SocialScreen({ navigation }) {
 
       {/* Content */}
       <View style={{ flex: 1 }}>
-        {tab === 'Buscar' && (
+        {loading ? (
+          <View style={{ paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.sm }}>
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} width="100%" height={72} radius={radius.lg} style={{ marginBottom: spacing.sm }} />
+            ))}
+          </View>
+        ) : error ? (
+          <View style={{ paddingHorizontal: screenPadding.horizontal, marginBottom: spacing.md }}>
+            <InlineError message={error} onRetry={fetchData} />
+          </View>
+        ) : null}
+
+        {!loading && !error && tab === 'Buscar' && (
           <FlatList
             data={players}
             keyExtractor={(item) => String(item.id)}
@@ -210,7 +230,7 @@ export default function SocialScreen({ navigation }) {
           />
         )}
 
-        {tab === 'Compañeros' && (
+        {!loading && !error && tab === 'Compañeros' && (
           <FlatList
             data={connections}
             keyExtractor={(item) => String(item.id)}
@@ -218,6 +238,8 @@ export default function SocialScreen({ navigation }) {
               <TouchableOpacity
                 style={[styles.connCard, { borderBottomColor: colors.borderLight }]}
                 onPress={() => openChat(item)}
+                accessibilityLabel={`Abrir chat con ${item.partner_name}`}
+                accessibilityRole="button"
               >
                 <View style={styles.connLeft}>
                   <View style={[styles.connAvatar, { backgroundColor: colors.surfaceHighlight }]}>
@@ -252,7 +274,7 @@ export default function SocialScreen({ navigation }) {
           />
         )}
 
-        {tab === 'Solicitudes' && (
+        {!loading && !error && tab === 'Solicitudes' && (
           <FlatList
             data={pending}
             keyExtractor={(item) => String(item.id)}
@@ -270,10 +292,10 @@ export default function SocialScreen({ navigation }) {
                   </View>
                 </View>
                 <View style={styles.reqBtns}>
-                  <TouchableOpacity onPress={() => respondRequest(item.id, 'reject')} style={[styles.iconBtn, { backgroundColor: colors.surfaceHighlight }]}>
+                  <TouchableOpacity onPress={() => respondRequest(item.id, 'reject')} style={[styles.iconBtn, { backgroundColor: colors.surfaceHighlight }]} accessibilityLabel={`Rechazar solicitud de ${item.name}`} accessibilityRole="button">
                     <Feather name="x" size={18} color={colors.text.primary} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => respondRequest(item.id, 'accept')} style={[styles.iconBtn, { backgroundColor: colors.text.primary }]}>
+                  <TouchableOpacity onPress={() => respondRequest(item.id, 'accept')} style={[styles.iconBtn, { backgroundColor: colors.text.primary }]} accessibilityLabel={`Aceptar solicitud de ${item.name}`} accessibilityRole="button">
                     <Feather name="check" size={18} color={colors.accent} />
                   </TouchableOpacity>
                 </View>
@@ -316,7 +338,6 @@ const styles = StyleSheet.create({
     gap: 4
   },
   badge: {
-    backgroundColor: '#EF4444',
     borderRadius: 8,
     minWidth: 16,
     height: 16,
@@ -324,7 +345,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 4,
   },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  badgeText: { fontSize: 10, fontWeight: '700' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -365,7 +386,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center',
   },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  unreadText: { fontSize: 11, fontWeight: '700' },
   requestCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: spacing.md, paddingHorizontal: screenPadding.horizontal, borderBottomWidth: 1,

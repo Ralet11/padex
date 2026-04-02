@@ -1,19 +1,37 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { matchesAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import MatchCard from '../../components/MatchCard';
+import { ScreenWrapper, Skeleton, InlineError } from '../../components/ui';
 import { spacing, radius } from '../../theme';
 import { typography } from '../../theme/typography';
 import { getRankByTier, RANK_ARRAY } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
+import { getCompetitiveTier, getProgressionPoints } from '../../utils/domain';
 
-const CATEGORY_FILTERS = ['Todos', ...RANK_ARRAY.map(r => r.name.split(' ')[0])];
+const CATEGORY_FILTERS = [
+  { key: 'all', label: 'Todos', value: null },
+  ...RANK_ARRAY.map((rank) => ({
+    key: `tier-${rank.id}`,
+    label: rank.name.split(' ')[0],
+    value: rank.id,
+  })),
+];
+
+function matchMatchesCategory(match, tier) {
+  if (!tier) return true;
+  if (match?.open_category) return true;
+
+  const minTier = Number(match?.min_category_tier || 1);
+  const maxTier = Number(match?.max_category_tier || 7);
+
+  return tier >= minTier && tier <= maxTier;
+}
 
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
@@ -21,25 +39,33 @@ export default function HomeScreen({ navigation }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [category, setCategory] = useState('Todos');
+  const [categoryTier, setCategoryTier] = useState(null);
+  const [error, setError] = useState(null);
 
   const fetchMatches = useCallback(async () => {
+    setError(null);
     try {
       const params = {};
-      if (category !== 'Todos') params.category = category;
+      if (categoryTier) params.category = categoryTier;
       const res = await matchesAPI.list(params);
       setMatches(res.data.matches);
     } catch (err) {
-      console.error(err);
+      setError(err.message || 'No se pudieron cargar los partidos');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [category]);
+  }, [categoryTier]);
 
   useEffect(() => { fetchMatches(); }, [fetchMatches]);
 
   const onRefresh = () => { setRefreshing(true); fetchMatches(); };
+  const visibleMatches = useMemo(
+    () => matches.filter((match) => matchMatchesCategory(match, categoryTier)),
+    [matches, categoryTier]
+  );
+  const userTier = getCompetitiveTier(user);
+  const userProgression = getProgressionPoints(user);
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -54,11 +80,11 @@ export default function HomeScreen({ navigation }) {
           </Text>
         </View>
         <View style={[styles.eloChip, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
-          <Text style={[typography.bodyBold, { color: colors.text.primary }]}>
-            ⭐ {user?.stars}
+          <Text style={[typography.bodyBold, { color: colors.text.primary }]}> 
+            ⭐ {userProgression}
           </Text>
-          <Text style={[typography.label, { color: colors.text.tertiary, marginTop: 2 }]}>
-            {getRankByTier(user?.category_tier).name}
+          <Text style={[typography.label, { color: colors.text.tertiary, marginTop: 2 }]}> 
+            {getRankByTier(userTier).name}
           </Text>
         </View>
       </View>
@@ -68,11 +94,11 @@ export default function HomeScreen({ navigation }) {
         <FlatList
           horizontal
           data={CATEGORY_FILTERS}
-          keyExtractor={(i) => i}
+          keyExtractor={(item) => item.key}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filters}
           renderItem={({ item }) => {
-            const isActive = category === item;
+            const isActive = categoryTier === item.value;
             return (
               <TouchableOpacity
                 style={[
@@ -80,14 +106,14 @@ export default function HomeScreen({ navigation }) {
                   { backgroundColor: isActive ? colors.primary : colors.surface },
                   { borderColor: isActive ? colors.primary : colors.border }
                 ]}
-                onPress={() => setCategory(item)}
+                onPress={() => setCategoryTier(item.value)}
               >
                 <Text style={[
                   typography.bodyMedium,
                   { color: isActive ? colors.accent : colors.text.primary, textTransform: 'capitalize' },
                   isActive && { fontWeight: '700' }
                 ]}>
-                  {item}
+                  {item.label}
                 </Text>
               </TouchableOpacity>
             );
@@ -100,7 +126,7 @@ export default function HomeScreen({ navigation }) {
           Disponibles
         </Text>
         <Text style={[typography.body, { color: colors.text.tertiary }]}>
-          {matches.length}
+          {visibleMatches.length}
         </Text>
       </View>
     </View>
@@ -114,25 +140,47 @@ export default function HomeScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <FlatList
-        data={matches}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <View style={styles.itemWrap}>
-            <MatchCard
-              match={item}
-              onPress={() => navigation.navigate('MatchDetail', { matchId: item.id })}
-            />
-          </View>
-        )}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={!loading ? renderEmpty : null}
-        contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        showsVerticalScrollIndicator={false}
-      />
-    </SafeAreaView>
+    <ScreenWrapper
+      edges={['top']}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      disablePadding
+      scrollViewProps={{ refreshControl: undefined }}
+    >
+      {loading ? (
+        <View style={styles.skeletonWrap}>
+          <Skeleton height={28} width="60%" style={{ marginBottom: spacing.sm }} />
+          <Skeleton height={16} width="40%" style={{ marginBottom: spacing.xl }} />
+          <Skeleton height={40} width="100%" style={{ marginBottom: spacing.xl }} />
+          <Skeleton height={100} width="100%" style={{ marginBottom: spacing.md }} />
+          <Skeleton height={100} width="100%" style={{ marginBottom: spacing.md }} />
+          <Skeleton height={100} width="100%" />
+        </View>
+      ) : error ? (
+        <View style={styles.errorWrap}>
+          <InlineError message={error} onRetry={fetchMatches} />
+        </View>
+      ) : (
+        <FlatList
+          data={visibleMatches}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => (
+            <View style={styles.itemWrap}>
+              <MatchCard
+                match={item}
+                compact
+                onPress={() => navigation.navigate('MatchDetail', { matchId: item.id })}
+              />
+            </View>
+          )}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmpty}
+          contentContainerStyle={styles.list}
+          scrollEnabled={false}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+    </ScreenWrapper>
   );
 }
 
@@ -173,4 +221,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   empty: { alignItems: 'center', paddingVertical: spacing.huge },
+  skeletonWrap: {
+    paddingHorizontal: screenPadding.horizontal,
+    paddingTop: spacing.xl,
+  },
+  errorWrap: {
+    paddingHorizontal: screenPadding.horizontal,
+    paddingTop: spacing.xxl,
+  },
 });

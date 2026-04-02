@@ -12,7 +12,7 @@ import {
   Loader2,
   LogOut
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { api } from '../../lib/runtime';
 
 const AdminDashboard = ({ onLogout }) => {
@@ -128,7 +128,7 @@ const AdminDashboard = ({ onLogout }) => {
             </div>
           ) : (
             filteredPartners.map(partner => (
-              <motion.div 
+              <Motion.div 
                 key={partner.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -164,7 +164,7 @@ const AdminDashboard = ({ onLogout }) => {
                 <div className="card-footer">
                   <button className="btn-contact">Contactar <ExternalLink size={14} /></button>
                 </div>
-              </motion.div>
+              </Motion.div>
             ))
           )}
         </div>
@@ -172,7 +172,7 @@ const AdminDashboard = ({ onLogout }) => {
         {/* Add Partner Modal */}
         {showAddPartnerModal && (
           <div className="modal-overlay">
-            <motion.div 
+            <Motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="modal glass"
@@ -212,7 +212,7 @@ const AdminDashboard = ({ onLogout }) => {
                   }}>Entendido</button>
                 </div>
               )}
-            </motion.div>
+            </Motion.div>
           </div>
         )}
       </main>

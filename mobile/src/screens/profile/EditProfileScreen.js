@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
 } from 'react-native';
@@ -10,9 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { spacing, radius, shadows } from '../../theme/spacing';
-import Button from '../../components/Button';
-import Input from '../../components/Input';
-import Avatar from '../../components/Avatar';
+import { Button, Input, Avatar, SuccessToast } from '../../components/ui';
 import { screenPadding } from '../../theme/layout';
 
 const POSITIONS = [
@@ -32,9 +30,14 @@ export default function EditProfileScreen({ navigation }) {
   });
   const [loading, setLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [toast, setToast] = useState({ visible: false, message: '' });
 
   function update(field, value) {
     setForm((p) => ({ ...p, [field]: value }));
+  }
+
+  function showToast(message) {
+    setToast({ visible: true, message });
   }
 
   async function handleSave() {
@@ -43,7 +46,8 @@ export default function EditProfileScreen({ navigation }) {
     try {
       const res = await profileAPI.update(form);
       updateUser(res.data.user);
-      Alert.alert('✅', 'Perfil actualizado', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      showToast('Perfil actualizado');
+      setTimeout(() => navigation.goBack(), 2600);
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {
@@ -74,7 +78,7 @@ export default function EditProfileScreen({ navigation }) {
         });
         const res = await profileAPI.uploadAvatar(formData);
         updateUser({ avatar: res.data.avatar });
-        Alert.alert('✅', 'Foto de perfil actualizada');
+        showToast('Foto de perfil actualizada');
       } catch (err) {
         Alert.alert('Error', err.message);
       } finally {
@@ -85,10 +89,15 @@ export default function EditProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <SuccessToast
+        visible={toast.visible}
+        message={toast.message}
+        onDismiss={() => setToast({ visible: false, message: '' })}
+      />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <Avatar name={user?.name} uri={user?.avatar} size={100} category={user?.category} />
+          <Avatar name={user?.name} src={user?.avatar} size={100} />
           <TouchableOpacity
             style={[styles.changePhotoBtn, { borderColor: colors.borderLight, backgroundColor: colors.surfaceHighlight }]}
             onPress={handlePickAvatar}
@@ -107,7 +116,7 @@ export default function EditProfileScreen({ navigation }) {
           value={form.name}
           onChangeText={(v) => update('name', v)}
           placeholder="Tu nombre"
-          icon={<Feather name="user" size={18} color={colors.text.tertiary} />}
+          leftIcon={<Feather name="user" size={18} color={colors.text.tertiary} />}
         />
 
         <Text style={[typography.label, { color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.sm }]}>Posición de juego</Text>
@@ -139,7 +148,7 @@ export default function EditProfileScreen({ navigation }) {
           value={form.paddle_brand}
           onChangeText={(v) => update('paddle_brand', v)}
           placeholder="Ej: Head Alpha, Bullpadel..."
-          icon={<Feather name="shield" size={18} color={colors.text.tertiary} />}
+          leftIcon={<Feather name="shield" size={18} color={colors.text.tertiary} />}
           style={{ marginTop: spacing.md }}
         />
 
@@ -148,7 +157,7 @@ export default function EditProfileScreen({ navigation }) {
           value={form.preferred_partner}
           onChangeText={(v) => update('preferred_partner', v)}
           placeholder="Nombre de tu compañero habitual"
-          icon={<Feather name="users" size={18} color={colors.text.tertiary} />}
+          leftIcon={<Feather name="users" size={18} color={colors.text.tertiary} />}
         />
 
         <Input
@@ -158,7 +167,7 @@ export default function EditProfileScreen({ navigation }) {
           placeholder="Contá algo sobre vos..."
           multiline
           numberOfLines={4}
-          icon={<Feather name="align-left" size={18} color={colors.text.tertiary} />}
+          leftIcon={<Feather name="align-left" size={18} color={colors.text.tertiary} />}
         />
 
         {/* ELO info */}
@@ -167,7 +176,7 @@ export default function EditProfileScreen({ navigation }) {
             <Feather name="star" size={14} color={colors.text.primary} /> ELO: {user?.elo} — {user?.category}
           </Text>
           <Text style={[typography.caption, { color: colors.text.tertiary, lineHeight: 18 }]}>
-            Tu ELO se ajusta automáticamente según las calificaciones obtenidas y el resultado de tus partidos.
+            Tu rango competitivo se ajusta por resultados de partidos. Las calificaciones quedan separadas como reputación social.
           </Text>
         </View>
 

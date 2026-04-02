@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "seed:demo": "node src/scripts/seedDemoData.js"
+    "seed:demo": "node src/scripts/seedDemoData.js",
+    "backfill:competitive-foundation": "node src/scripts/backfillCompetitiveFoundation.js",
+    "verify:competitive-foundation": "node test_competitive_foundation.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,13 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../theme/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { messagesAPI } from '../../services/api';
 import { getSocket, joinConnectionRoom, sendSocketMessage, emitTyping } from '../../services/socket';
 import { screenPadding } from '../../theme/layout';
+import { InlineError, Skeleton } from '../../components/ui';
 
 function parseMessageDate(rawValue) {
   if (!rawValue) return null;
@@ -38,17 +40,23 @@ export default function ChatScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [sendError, setSendError] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
   const flatRef = useRef(null);
   const typingTimeout = useRef(null);
 
   const fetchMessages = useCallback(async () => {
+    setFetchError(null);
     try {
       const res = await messagesAPI.list(connectionId);
       setMessages(Array.isArray(res.data.messages) ? res.data.messages : []);
     } catch (err) {
-      console.error('[chat] fetch failed', err);
+      setFetchError(err.message || 'No se pudieron cargar los mensajes');
+    } finally {
+      setLoading(false);
     }
   }, [connectionId]);
 
@@ -118,10 +126,12 @@ export default function ChatScreen({ route, navigation }) {
 
     setInput('');
     setSending(true);
+    setSendError(null);
 
     try {
       sendSocketMessage(connectionId, text);
     } catch (err) {
+      setSendError(err.message || 'No se pudo enviar el mensaje');
       console.warn('[chat] socket send failed, using REST fallback', err);
       const res = await messagesAPI.send({ connection_id: connectionId, content: text });
       setMessages((prev) => [...prev, res.data.message]);
@@ -173,17 +183,34 @@ export default function ChatScreen({ route, navigation }) {
         keyboardVerticalOffset={90}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={styles.backButtonText}>‹</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            accessibilityLabel="Volver"
+            accessibilityRole="button"
+          >
+            <Feather name="chevron-left" size={24} color={colors.text.primary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {partnerName || 'Chat'}
             </Text>
           </View>
-          <View style={styles.headerSpacer} />
+        <View style={styles.headerSpacer} />
         </View>
 
+        {loading ? (
+          <View style={{ flex: 1, paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.lg }}>
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} width={i % 2 === 0 ? '60%' : '75%'} height={44} radius={20} style={{ marginBottom: spacing.sm, alignSelf: i % 2 === 0 ? 'flex-start' : 'flex-end' }} />
+            ))}
+          </View>
+        ) : fetchError ? (
+          <View style={{ flex: 1, paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.xxl }}>
+            <InlineError message={fetchError} onRetry={fetchMessages} />
+          </View>
+        ) : (
         <FlatList
           ref={flatRef}
           data={groupedMessages}
@@ -236,10 +263,21 @@ export default function ChatScreen({ route, navigation }) {
           }}
         />
 
-        {isTyping && (
+        )}
+
+        {!loading && !fetchError && isTyping && (
           <View style={styles.typingWrap}>
             <Text style={styles.typingText}>{partnerName} esta escribiendo...</Text>
           </View>
+        )}
+
+        {sendError && (
+          <InlineError
+            message={sendError}
+            onRetry={handleSend}
+            retryLabel="Reenviar"
+            style={{ marginHorizontal: screenPadding.horizontal, marginBottom: spacing.xs }}
+          />
         )}
 
         <View style={styles.composerWrap}>
@@ -259,8 +297,10 @@ export default function ChatScreen({ route, navigation }) {
               onPress={handleSend}
               disabled={!input.trim() || sending}
               activeOpacity={0.8}
+              accessibilityLabel="Enviar mensaje"
+              accessibilityRole="button"
             >
-              <Text style={styles.sendButtonText}>➤</Text>
+              <Feather name="send" size={18} color={colors.background} />
             </TouchableOpacity>
           </View>
         </View>
@@ -293,12 +333,6 @@ function createStyles(colors, spacing, radius, insets) {
       justifyContent: 'center',
       borderRadius: 18,
       backgroundColor: colors.surfaceHighlight,
-    },
-    backButtonText: {
-      fontSize: 28,
-      lineHeight: 28,
-      color: colors.text.primary,
-      marginTop: -4,
     },
     headerCenter: {
       flex: 1,
@@ -435,7 +469,8 @@ function createStyles(colors, spacing, radius, insets) {
       textAlign: 'right',
     },
     messageTimeMine: {
-      color: 'rgba(255,255,255,0.72)',
+      color: colors.text.inverse,
+      opacity: 0.72,
     },
     messageTimeOther: {
       color: colors.text.tertiary,
@@ -488,12 +523,6 @@ function createStyles(colors, spacing, radius, insets) {
     },
     sendButtonDisabled: {
       backgroundColor: colors.border,
-    },
-    sendButtonText: {
-      fontSize: 16,
-      color: colors.background,
-      fontWeight: '700',
-      marginLeft: 2,
     },
   });
 }

@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-const DEFAULT_API_URL = 'https://apidev.insiderbookings.com';
+const DEFAULT_API_URL = 'http://192.168.1.36:3000';
 const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
 function normalizeBaseUrl(value) {
@@ -92,9 +92,20 @@ export const profileAPI = {
 
 export const courtsAPI = {
   list: () => api.get('/courts'),
-  venues: () => api.get('/courts/venues'),
-  venueSlots: (id, date) => api.get(`/courts/venues/${id}/slots`, { params: date ? { date } : {} }),
-  venueAvailabilitySummary: (id, from, to) => api.get(`/courts/venues/${id}/availability-summary`, { params: { from, to } }),
+  venues: (params = {}) => api.get('/courts/venues', { params }),
+  venueSlots: (id, date, filters = {}) => api.get(`/courts/venues/${id}/slots`, {
+    params: {
+      ...(date ? { date } : {}),
+      ...filters,
+    }
+  }),
+  venueAvailabilitySummary: (id, from, to, filters = {}) => api.get(`/courts/venues/${id}/availability-summary`, {
+    params: {
+      from,
+      to,
+      ...filters,
+    }
+  }),
   get: (id) => api.get(`/courts/${id}`),
   slots: (id, date) => api.get(`/courts/${id}/slots`, { params: date ? { date } : {} }),
 };
@@ -106,7 +117,7 @@ export const matchesAPI = {
   create: (data) => api.post('/matches', data),
   join: (id) => api.post(`/matches/${id}/join`),
   leave: (id) => api.delete(`/matches/${id}/leave`),
-  complete: (id) => api.put(`/matches/${id}/complete`),
+  complete: (id, data = {}) => api.put(`/matches/${id}/complete`, data),
 };
 
 export const socialAPI = {

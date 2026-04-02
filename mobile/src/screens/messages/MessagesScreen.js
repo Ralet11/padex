@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl,
 } from 'react-native';
@@ -11,19 +11,24 @@ import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { spacing, radius } from '../../theme/spacing';
 import { screenPadding } from '../../theme/layout';
+import { InlineError, Skeleton } from '../../components/ui';
 
 export default function MessagesScreen({ navigation }) {
   const { colors, isDark } = useTheme();
   const [connections, setConnections] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   async function fetchConnections() {
+    setError(null);
     try {
       const res = await socialAPI.connections();
       setConnections(res.data.connections);
     } catch (err) {
-      console.error(err);
+      setError(err.message || 'No se pudieron cargar los mensajes');
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   }
@@ -81,7 +86,17 @@ export default function MessagesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <FlatList
+      {error && !loading && (
+        <InlineError message={error} onRetry={fetchConnections} style={{ marginHorizontal: screenPadding.horizontal, marginBottom: spacing.sm }} />
+      )}
+      {loading ? (
+        <View style={{ paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.lg }}>
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} width="100%" height={64} radius={radius.lg} style={{ marginBottom: spacing.sm }} />
+          ))}
+        </View>
+      ) : (
+        <FlatList
         data={connections}
         ListHeaderComponent={renderHeader}
         keyExtractor={(item) => String(item.id)}
@@ -90,6 +105,8 @@ export default function MessagesScreen({ navigation }) {
             style={[styles.item, { borderBottomColor: colors.borderLight }]}
             onPress={() => openChat(item)}
             activeOpacity={0.7}
+            accessibilityLabel={`Abrir chat con ${item.partner_name}`}
+            accessibilityRole="button"
           >
             <View style={styles.avatar}>
               <View style={[styles.avatarInner, { backgroundColor: colors.text.primary }]}>
@@ -131,6 +148,7 @@ export default function MessagesScreen({ navigation }) {
           </View>
         }
       />
+      )}
     </SafeAreaView>
   );
 }
@@ -166,6 +184,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', marginLeft: 8,
   },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  badgeText: { fontSize: 11, fontWeight: '700' },
   empty: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: spacing.xl },
 });

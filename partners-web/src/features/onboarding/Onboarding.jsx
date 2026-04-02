@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { User, MapPin, Building2, Phone, Mail, ChevronRight, Check, Lock, Shield } from 'lucide-react';
 import { api } from '../../lib/runtime';
 
@@ -83,7 +83,7 @@ const Onboarding = ({ onComplete }) => {
 
         <AnimatePresence mode="wait">
           {step === 1 && (
-            <motion.div 
+            <Motion.div 
               key="step1"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -128,11 +128,11 @@ const Onboarding = ({ onComplete }) => {
               <button className="btn-primary" onClick={nextStep}>
                 Continuar a Seguridad <ChevronRight size={18} />
               </button>
-            </motion.div>
+            </Motion.div>
           )}
 
           {step === 2 && (
-            <motion.div 
+            <Motion.div 
               key="step2"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -163,11 +163,11 @@ const Onboarding = ({ onComplete }) => {
                 <button className="btn-secondary" onClick={prevStep}>Atrás</button>
                 <button className="btn-primary" onClick={nextStep}>Revisar Datos</button>
               </div>
-            </motion.div>
+            </Motion.div>
           )}
 
           {step === 3 && (
-            <motion.div 
+            <Motion.div 
               key="step3"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -191,7 +191,7 @@ const Onboarding = ({ onComplete }) => {
               </div>
 
               <button className="btn-primary" onClick={handleSubmit}>Ir al Dashboard</button>
-            </motion.div>
+            </Motion.div>
           )}
         </AnimatePresence>
       </div>

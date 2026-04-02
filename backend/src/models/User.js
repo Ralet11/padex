@@ -48,6 +48,34 @@ const User = sequelize.define('User', {
         type: DataTypes.INTEGER,
         defaultValue: 7, // 7ma to 1ra
     },
+    league_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    season_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    competitive_category: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    competitive_tier: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    competitive_rating: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+    },
+    competitive_ranking: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    progression_points: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+    },
     matches_played: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
@@ -64,6 +92,14 @@ const User = sequelize.define('User', {
         defaultValue: 0,
     },
     losses: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+    },
+    reputation_avg_score: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+    },
+    reputation_ratings_count: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
     },

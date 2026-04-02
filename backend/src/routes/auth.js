@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 const { starsFromSelfCategory, categoryFromStars } = require('../services/elo');
 const auth = require('../middleware/auth');
+const { buildCanonicalUserPayload } = require('../services/competitive/userContracts');
 
 const router = express.Router();
 
@@ -72,16 +73,13 @@ router.post('/register', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    const safeUser = user.toJSON();
-    delete safeUser.password;
-
     console.log(`[auth.register] [${req.requestId}] user created`, {
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    res.status(201).json({ token, user: safeUser });
+    res.status(201).json({ token, user: buildCanonicalUserPayload(user) });
   } catch (err) {
     console.error(`[auth.register] [${req.requestId}] error`);
     console.error(err);
@@ -126,16 +124,13 @@ router.post('/login', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    const safeUser = user.toJSON();
-    delete safeUser.password;
-
     console.log(`[auth.login] [${req.requestId}] login success`, {
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    res.json({ token, user: safeUser });
+    res.json({ token, user: buildCanonicalUserPayload(user) });
   } catch (err) {
     console.error(`[auth.login] [${req.requestId}] error`);
     console.error(err);
@@ -145,15 +140,13 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] }
-    });
+    const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] } });
 
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    res.json({ user });
+    res.json({ user: buildCanonicalUserPayload(user) });
   } catch (err) {
     console.error(`[auth.me] [${req.requestId}] error`);
     console.error(err);

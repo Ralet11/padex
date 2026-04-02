@@ -7,19 +7,23 @@ import { Feather } from '@expo/vector-icons';
 import { matchesAPI, ratingsAPI, resolveAssetUrl } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
-import Avatar from '../../components/Avatar';
-import Button from '../../components/Button';
+import { Avatar, Button, Skeleton, InlineError } from '../../components/ui';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { getRankByTier } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
+import { getCompetitiveTier, getMatchState, MATCH_STATES } from '../../utils/domain';
 
-const STATUS_CONFIG = {
-  open: { label: 'Abierto', color: '#A7CE29' },
-  reserved: { label: 'Reservado', color: '#F59E0B' },
-  completed: { label: 'Finalizado', color: '#A1A1AA' },
-  cancelled: { label: 'Cancelado', color: '#EF4444' },
-};
+function getStatusConfig(colors) {
+  return {
+    [MATCH_STATES.OPEN]: { label: 'Abierto', color: colors.success },
+    [MATCH_STATES.RESERVED]: { label: 'Reservado', color: colors.warning },
+    [MATCH_STATES.IN_PROGRESS]: { label: 'En juego', color: colors.info },
+    [MATCH_STATES.COMPLETED]: { label: 'Finalizado', color: colors.text.tertiary },
+    [MATCH_STATES.CANCELLED]: { label: 'Cancelado', color: colors.danger },
+    [MATCH_STATES.DRAFT]: { label: 'Borrador', color: colors.text.secondary },
+  };
+}
 
 function getPlayerPrice(totalCourtPrice, orderIndex) {
   const basePrice = Number(totalCourtPrice || 0) / 4;
@@ -45,7 +49,7 @@ function StarRating({ value, onRate, colors }) {
   return (
     <View style={{ flexDirection: 'row', gap: spacing.sm, justifyContent: 'center' }}>
       {[1, 2, 3, 4, 5].map((s) => (
-        <TouchableOpacity key={s} onPress={() => onRate(s)}>
+        <TouchableOpacity key={s} onPress={() => onRate(s)} accessibilityLabel={`${s} estrella${s > 1 ? 's' : ''}`} accessibilityRole="button">
           <Feather
             name="star"
             size={32}
@@ -59,10 +63,11 @@ function StarRating({ value, onRate, colors }) {
 }
 
 function PlayerQuadrant({ player, colors, isCreator }) {
+  const rank = getRankByTier(getCompetitiveTier(player));
   return (
-    <View style={[styles.playerRowCard, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}>
+    <View style={[styles.playerRowCard, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}> 
       <View style={styles.playerRowMain}>
-        <Avatar name={player.name} uri={player.avatar} size={52} category={player.category} />
+        <Avatar name={player.name} uri={player.avatar} size={52} category={rank.name} />
         <View style={styles.playerRowInfo}>
           <View style={styles.playerRowTitle}>
             <Text style={[typography.bodyBold, { color: colors.text.primary, flex: 1 }]} numberOfLines={1}>
@@ -76,7 +81,7 @@ function PlayerQuadrant({ player, colors, isCreator }) {
             )}
           </View>
           <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]} numberOfLines={1}>
-            {getRankByTier(player.category).name}
+            {rank.name}
           </Text>
         </View>
       </View>
@@ -91,6 +96,8 @@ function EmptyQuadrant({ colors, joinPrice, onJoin, showJoin, isInMatch }) {
         style={[styles.emptySlotCard, styles.joinSlotCard, { borderColor: colors.text.primary, backgroundColor: colors.surfaceHighlight }]}
         activeOpacity={0.85}
         onPress={onJoin}
+        accessibilityLabel={`Sumarte al partido por $${joinPrice.toLocaleString('es-AR')}`}
+        accessibilityRole="button"
       >
         <View style={styles.emptySlotHeader}>
           <View style={[styles.emptySlotIcon, { backgroundColor: colors.text.primary }]}>
@@ -143,13 +150,16 @@ export default function MatchDetailScreen({ route, navigation }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [ratingPlayer, setRatingPlayer] = useState(null);
   const [ratingScore, setRatingScore] = useState(3);
+  const [winnerIds, setWinnerIds] = useState([]);
+  const [error, setError] = useState(null);
 
   async function fetchMatch() {
+    setError(null);
     try {
       const res = await matchesAPI.get(matchId);
       setMatch(res.data.match);
     } catch (err) {
-      Alert.alert('Error', err.message);
+      setError(err.message || 'No se pudo cargar el partido');
     } finally {
       setLoading(false);
     }
@@ -158,6 +168,19 @@ export default function MatchDetailScreen({ route, navigation }) {
   useEffect(() => {
     fetchMatch();
   }, [matchId]);
+
+  useEffect(() => {
+    if (!Array.isArray(match?.players)) {
+      setWinnerIds([]);
+      return;
+    }
+
+    setWinnerIds(
+      match.players
+        .filter((player) => player.competitive_result === 'win')
+        .map((player) => player.id)
+    );
+  }, [match?.players]);
 
   const isInMatch = match?.players?.some((p) => p.id === user.id);
   const isFull = (match?.players?.length || 0) >= (match?.max_players || 4);
@@ -168,7 +191,7 @@ export default function MatchDetailScreen({ route, navigation }) {
     try {
       const res = await matchesAPI.join(matchId);
       setMatch(res.data.match);
-      if (res.data.match.status === 'reserved') {
+      if (getMatchState(res.data.match) === MATCH_STATES.RESERVED) {
         Alert.alert('Partido reservado', 'Este partido completo el cupo y se quedo con el turno.');
       }
     } catch (err) {
@@ -210,6 +233,59 @@ export default function MatchDetailScreen({ route, navigation }) {
     }
   }
 
+  function toggleWinner(playerId) {
+    setWinnerIds((current) => (
+      current.includes(playerId)
+        ? current.filter((id) => id !== playerId)
+        : [...current, playerId]
+    ));
+  }
+
+  function inferWinningSideFromSelection(players, selectedWinnerIds) {
+    if (!Array.isArray(players) || selectedWinnerIds.length === 0) return null;
+
+    const winnerSet = new Set(selectedWinnerIds);
+    const winners = players.filter((player) => winnerSet.has(player.id));
+    if (winners.length === 0) return null;
+
+    const winnerTeams = [...new Set(winners.map((player) => player.team).filter(Boolean))];
+    return winnerTeams.length === 1 ? winnerTeams[0] : null;
+  }
+
+  async function handleComplete() {
+    if (winnerIds.length === 0 || winnerIds.length === (match?.players?.length || 0)) {
+      Alert.alert('Resultado incompleto', 'Marca a los jugadores ganadores antes de finalizar el partido.');
+      return;
+    }
+
+    const winningSide = inferWinningSideFromSelection(match?.players || [], winnerIds);
+    const allPlayersHaveCanonicalTeams = (match?.players || []).every((player) => player?.team);
+    if (allPlayersHaveCanonicalTeams && !winningSide) {
+      Alert.alert('Resultado inválido', 'Los ganadores deben pertenecer al mismo lado del partido.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await matchesAPI.complete(matchId, {
+        winners: winnerIds,
+        source: 'mobile',
+        result: winningSide
+          ? {
+              winning_side: winningSide,
+              source: 'mobile',
+            }
+          : undefined,
+      });
+      setMatch(res.data.match);
+      Alert.alert('Resultado registrado', 'El partido se cerró y se actualizaron los perfiles competitivos.');
+    } catch (err) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const orderedPlayers = useMemo(() => (
     [...(match?.players || [])]
       .sort((a, b) => new Date(a.joined_at || 0) - new Date(b.joined_at || 0))
@@ -217,13 +293,27 @@ export default function MatchDetailScreen({ route, navigation }) {
 
   if (loading || !match) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
-        <Text style={[typography.body, { color: colors.text.secondary, textAlign: 'center' }]}>Cargando...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.xl }]}>
+        <Skeleton height={64} width="100%" radius={radius.xl} style={{ marginBottom: spacing.md }} />
+        <Skeleton height={24} width="70%" style={{ marginBottom: spacing.sm }} />
+        <Skeleton height={16} width="50%" style={{ marginBottom: spacing.xl }} />
+        <Skeleton height={80} width="100%" style={{ marginBottom: spacing.sm }} />
+        <Skeleton height={80} width="100%" style={{ marginBottom: spacing.sm }} />
       </View>
     );
   }
 
-  const status = STATUS_CONFIG[match.status] || STATUS_CONFIG.open;
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.xxl }]}>
+        <InlineError message={error} onRetry={fetchMatch} />
+      </View>
+    );
+  }
+
+  const matchState = getMatchState(match);
+  const statusConfig = getStatusConfig(colors);
+  const status = statusConfig[matchState] || statusConfig[MATCH_STATES.OPEN];
   const venueImage = resolveAssetUrl(match.venue_image);
   const date = new Date(`${match.date}T${match.time}`);
   const dayStr = date.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -234,7 +324,8 @@ export default function MatchDetailScreen({ route, navigation }) {
   const maxPlayers = match?.max_players || 4;
   const quadrants = Array.from({ length: maxPlayers }, (_, index) => orderedPlayers[index] || null);
   const joinQuadrantIndex = quadrants.findIndex((item) => item === null);
-  const showActionSection = (isInMatch && match.status !== 'completed') || (isCreator && match.status === 'reserved');
+  const showActionSection = (isInMatch && matchState !== MATCH_STATES.COMPLETED) || (isCreator && matchState === MATCH_STATES.RESERVED);
+  const canSubmitResult = winnerIds.length > 0 && winnerIds.length < orderedPlayers.length;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -253,11 +344,13 @@ export default function MatchDetailScreen({ route, navigation }) {
                 style={[styles.backButton, { backgroundColor: colors.surface }]}
                 onPress={() => navigation.goBack()}
                 activeOpacity={0.85}
+                accessibilityLabel="Volver"
+                accessibilityRole="button"
               >
                 <Feather name="arrow-left" size={18} color={colors.text.primary} />
               </TouchableOpacity>
               <View style={[styles.statusChip, { backgroundColor: status.color }]}>
-                <Text style={styles.statusChipText}>{status.label}</Text>
+                <Text style={[styles.statusChipText, { color: colors.text.inverse }]}>{status.label}</Text>
               </View>
             </View>
           </View>
@@ -270,6 +363,8 @@ export default function MatchDetailScreen({ route, navigation }) {
                 style={[styles.addressCard, { backgroundColor: colors.surfaceHighlight }]}
                 activeOpacity={0.8}
                 onPress={() => openVenueMap(match)}
+                accessibilityLabel={`Abrir mapa: ${match.venue_address}`}
+                accessibilityRole="button"
               >
                 <Feather name="map-pin" size={14} color={colors.text.tertiary} />
                 <Text style={[typography.caption, { color: colors.text.secondary, marginLeft: 8, flex: 1 }]}>
@@ -327,32 +422,43 @@ export default function MatchDetailScreen({ route, navigation }) {
                 colors={colors}
                 joinPrice={getPlayerPrice(totalValue, index)}
                 onJoin={handleJoin}
-                showJoin={index === joinQuadrantIndex && match.status === 'open' && !isInMatch && !isFull}
+                showJoin={index === joinQuadrantIndex && matchState === MATCH_STATES.OPEN && !isInMatch && !isFull}
                 isInMatch={isInMatch}
               />
             );
           })}
         </View>
 
-        {match.status === 'completed' && (
+        {matchState === MATCH_STATES.COMPLETED && (
+          <View style={[styles.resultSummaryCard, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}> 
+            <Text style={[typography.h3, { color: colors.text.primary }]}>Resultado competitivo</Text>
+            <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 4 }]}> 
+              {match.canonical_completion?.score?.length
+                ? match.canonical_completion.score.map((setScore) => `${setScore.a}-${setScore.b}`).join(' · ')
+                : 'Resultado registrado sin score detallado'}
+            </Text>
+          </View>
+        )}
+
+        {matchState === MATCH_STATES.COMPLETED && (
           <View style={styles.sectionHeader}>
             <Text style={[typography.h3, { color: colors.text.primary }]}>Calificaciones</Text>
           </View>
         )}
 
-        {match.status === 'completed' && match.players?.map((player) => (
+        {matchState === MATCH_STATES.COMPLETED && match.players?.map((player) => (
           player.id !== user.id ? (
-            <View key={`rating-${player.id}`} style={[styles.ratingRow, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}>
+            <View key={`rating-${player.id}`} style={[styles.ratingRow, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}> 
               <View style={styles.ratingPlayerInfo}>
-                <Avatar name={player.name} uri={player.avatar} size={42} category={player.category} />
+                <Avatar name={player.name} uri={player.avatar} size={42} category={getRankByTier(getCompetitiveTier(player)).name} />
                 <View style={{ marginLeft: spacing.md }}>
                   <Text style={[typography.bodyBold, { color: colors.text.primary }]}>{player.name}</Text>
-                  <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                    {getRankByTier(player.category).name}
+                  <Text style={[typography.caption, { color: colors.text.secondary }]}> 
+                    {getRankByTier(getCompetitiveTier(player)).name}
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => setRatingPlayer(ratingPlayer === player.id ? null : player.id)}>
+              <TouchableOpacity onPress={() => setRatingPlayer(ratingPlayer === player.id ? null : player.id)} accessibilityLabel={`Calificar a ${player.name}`} accessibilityRole="button">
                 <Text style={[typography.captionMedium, { color: colors.text.primary }]}>Calificar</Text>
               </TouchableOpacity>
             </View>
@@ -360,26 +466,56 @@ export default function MatchDetailScreen({ route, navigation }) {
         ))}
 
         {ratingPlayer && (
-          <View style={[styles.ratingPanel, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+          <View style={[styles.ratingPanel, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}> 
             <Text style={[typography.subtitle, { color: colors.text.primary, marginBottom: spacing.md }]}>Califica a este jugador</Text>
             <StarRating value={ratingScore} onRate={setRatingScore} colors={colors} />
             <Button title="Confirmar calificacion" onPress={handleRate} style={{ marginTop: spacing.lg, width: '100%' }} />
           </View>
         )}
 
+        {isCreator && matchState === MATCH_STATES.RESERVED ? (
+          <View style={[styles.resultEditorCard, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}> 
+            <Text style={[typography.h3, { color: colors.text.primary }]}>Registrar resultado</Text>
+            <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 4 }]}>Toca a los ganadores para enviar el cierre competitivo canonizado.</Text>
+            <View style={styles.resultWinnersGrid}>
+              {orderedPlayers.map((player) => {
+                const selected = winnerIds.includes(player.id);
+                return (
+                  <TouchableOpacity
+                    key={`winner-${player.id}`}
+                    activeOpacity={0.82}
+                    onPress={() => toggleWinner(player.id)}
+                    accessibilityLabel={`${selected ? 'Quitar' : 'Marcar'} a ${player.name} como ganador`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={[
+                      styles.winnerChip,
+                      {
+                        borderColor: selected ? colors.text.primary : colors.borderLight,
+                        backgroundColor: selected ? colors.surfaceHighlight : colors.background,
+                      },
+                    ]}
+                  >
+                    <Text style={[typography.captionMedium, { color: colors.text.primary }]} numberOfLines={1}>{player.name}</Text>
+                    <Text style={[typography.caption, { color: colors.text.secondary }]}>{selected ? 'Ganador' : 'Pendiente'}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         {showActionSection ? (
-          <View style={[styles.actionSection, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}>
-            {isInMatch && match.status !== 'completed' && (
+          <View style={[styles.actionSection, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}> 
+            {isInMatch && matchState !== MATCH_STATES.COMPLETED && (
               <Button title="Darse de baja" onPress={handleLeave} loading={actionLoading} variant="danger" size="lg" />
             )}
-            {isCreator && match.status === 'reserved' && (
+            {isCreator && matchState === MATCH_STATES.RESERVED && (
               <Button
-                title="Finalizar partido"
-                onPress={async () => {
-                  await matchesAPI.complete(matchId);
-                  fetchMatch();
-                }}
-                variant="secondary"
+                title={canSubmitResult ? 'Finalizar partido' : 'Seleccioná ganadores'}
+                onPress={handleComplete}
+                loading={actionLoading}
+                variant="outline"
                 size="lg"
               />
             )}
@@ -421,9 +557,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -433,7 +569,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   statusChipText: {
-    color: '#111',
     fontWeight: '800',
     fontSize: 12,
   },
@@ -561,6 +696,31 @@ const styles = StyleSheet.create({
     marginVertical: spacing.md,
     alignItems: 'center',
     borderWidth: 1,
+  },
+  resultSummaryCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  resultEditorCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  resultWinnersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  winnerChip: {
+    flexBasis: '48%',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.sm,
+    gap: 4,
   },
   actionSection: {
     borderRadius: radius.xl,

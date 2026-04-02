@@ -4,6 +4,7 @@ const multer = require('multer');
 const { User, Rating, Connection, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const auth = require('../middleware/auth');
+const { buildCanonicalUserPayload, buildProfileUserPayload } = require('../services/competitive/userContracts');
 
 const router = express.Router();
 
@@ -46,11 +47,10 @@ router.get('/:id', auth, async (req, res) => {
     });
 
     res.json({
-      user: {
-        ...user.toJSON(),
-        avg_rating: ratingData.avg_score ? Math.round(ratingData.avg_score * 10) / 10 : null,
+      user: buildProfileUserPayload(user, {
+        avg_score: ratingData.avg_score ? Math.round(ratingData.avg_score * 10) / 10 : null,
         total_ratings: parseInt(ratingData.total_ratings || 0),
-      },
+      }),
       connection: connection || null,
     });
   } catch (err) {
@@ -79,7 +79,7 @@ router.put('/', auth, async (req, res) => {
       attributes: { exclude: ['password'] }
     });
 
-    res.json({ user });
+    res.json({ user: buildCanonicalUserPayload(user) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

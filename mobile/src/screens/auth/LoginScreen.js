@@ -1,20 +1,11 @@
 import React, { useState } from 'react';
-import {
-  View, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, TouchableOpacity, Alert
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Typography } from '../../components/ui/Typography';
-import { Card } from '../../components/ui/Card';
-import { Mail, Lock } from 'lucide-react-native';
-import { screenPadding } from '../../theme/layout';
-import BrandLockup from '../../components/branding/BrandLockup';
+import AuthShell from '../../components/auth/AuthShell';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
@@ -26,12 +17,12 @@ export default function LoginScreen({ navigation }) {
   const [errors, setErrors] = useState({});
 
   function validate() {
-    const e = {};
-    if (!email.trim()) e.email = 'El email es requerido';
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Email invalido';
-    if (!password) e.password = 'La contrasena es requerida';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    const nextErrors = {};
+    if (!email.trim()) nextErrors.email = 'El email es requerido';
+    else if (!/\S+@\S+\.\S+/.test(email)) nextErrors.email = 'Email invalido';
+    if (!password) nextErrors.password = 'La contrasena es requerida';
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   }
 
   async function handleLogin() {
@@ -49,111 +40,178 @@ export default function LoginScreen({ navigation }) {
   }
 
   return (
-    <LinearGradient
-      colors={['#050510', colors.background, colors.background]}
-      style={styles.gradient}
-    >
-      <StatusBar style="light" hidden={false} />
-      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
-          style={styles.flex}
-        >
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollContent,
+    <AuthShell
+      title="Ingresar"
+      subtitle="Entra a tu cuenta para ver partidos, mensajes y ranking."
+      headerContent={
+        <View style={styles.heroContent}>
+          <View
+            style={[
+              styles.heroPill,
               {
-                paddingTop: spacing.lg,
-                paddingBottom: spacing.xxl,
-                paddingHorizontal: screenPadding.horizontal,
-              }
+                borderColor: `${colors.accent}36`,
+                backgroundColor: `${colors.accent}18`,
+              },
             ]}
-            keyboardDismissMode="on-drag"
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-            contentInsetAdjustmentBehavior="always"
           >
-            <View style={styles.header}>
-              <BrandLockup />
-              <Typography
-                variant="bodyMedium"
-                align="center"
-                style={[styles.headerCopy, { marginTop: spacing.md }]}
-              >
-                Inicia sesion para jugar
-              </Typography>
-            </View>
+            <Typography variant="captionMedium" style={[styles.heroPillText, { color: colors.accent }]}>
+              PADEX
+            </Typography>
+          </View>
 
-            <Card variant="glass" style={styles.card}>
-              <Input
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="tu@email.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                error={errors.email}
-                leftIcon={<Mail color={colors.text.secondary} size={20} />}
-              />
+          <View style={styles.heroLogoTile}>
+            <Image
+              source={require('../../../assets/ball-mark.png')}
+              resizeMode="contain"
+              style={styles.heroLogo}
+            />
+          </View>
 
-              <Input
-                label="Contrasena"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="********"
-                secureTextEntry
-                autoCorrect={false}
-                error={errors.password}
-                leftIcon={<Lock color={colors.text.secondary} size={20} />}
-              />
+          <Typography variant="caption" align="center" style={styles.heroCopy}>
+            
+          </Typography>
+        </View>
+      }
+      footer={
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Register')}
+          style={styles.registerBtn}
+          activeOpacity={0.75}
+        >
+          <Typography variant="bodyMedium" align="center" style={{ color: colors.text.secondary }}>
+            No tenes cuenta?{' '}
+            <Typography variant="bodyBold" style={{ color: colors.accent }}>
+              Crear perfil
+            </Typography>
+          </Typography>
+        </TouchableOpacity>
+      }
+    >
+      <Input
+        label="Email"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="tu@email.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        error={errors.email}
+        labelStyle={styles.fieldLabel}
+        containerStyle={styles.fieldContainer}
+        inputStyle={styles.fieldInput}
+        placeholderTextColor="#B8BEC8"
+        returnKeyType="next"
+      />
 
-              <Button
-                title="Iniciar sesion"
-                onPress={handleLogin}
-                loading={loading}
-                size="lg"
-                style={{ marginTop: spacing.md }}
-              />
+      <Input
+        label="Contrasena"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="********"
+        secureTextEntry
+        autoCorrect={false}
+        autoComplete="password"
+        textContentType="password"
+        error={errors.password}
+        labelStyle={styles.fieldLabel}
+        containerStyle={styles.fieldContainer}
+        inputStyle={styles.fieldInput}
+        placeholderTextColor="#B8BEC8"
+        returnKeyType="done"
+        onSubmitEditing={handleLogin}
+      />
 
-              <View style={[styles.divider, { marginVertical: spacing.lg }]}>
-                <View style={[styles.line, { backgroundColor: colors.border }]} />
-                <Typography variant="caption" color="tertiary" style={{ marginHorizontal: spacing.md }}>
-                  o
-                </Typography>
-                <View style={[styles.line, { backgroundColor: colors.border }]} />
-              </View>
-
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Register')}
-                style={styles.registerBtn}
-                activeOpacity={0.7}
-              >
-                <Typography variant="bodyMedium" color="secondary" align="center">
-                  No tenes cuenta?{' '}
-                  <Typography variant="bodyBold" color="primary">
-                    Registrate
-                  </Typography>
-                </Typography>
-              </TouchableOpacity>
-            </Card>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
+      <Button
+        title="Entrar"
+        onPress={handleLogin}
+        loading={loading}
+        size="lg"
+        textColor="#FFFFFF"
+        loadingColor="#FFFFFF"
+        style={[styles.submitBtn, { marginTop: spacing.md }]}
+        textStyle={styles.submitText}
+      />
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  flex: { flex: 1 },
-  scrollContent: { flexGrow: 1 },
-  header: { alignItems: 'center', marginBottom: 16, paddingTop: 12 },
-  headerCopy: { color: 'rgba(255, 255, 255, 0.76)' },
-  card: { marginTop: 24 },
-  divider: { flexDirection: 'row', alignItems: 'center' },
-  line: { flex: 1, height: 1 },
-  registerBtn: { alignItems: 'center' },
+  heroContent: {
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  heroPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  heroPillText: {
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+  heroLogoTile: {
+    width: 74,
+    height: 74,
+    borderRadius: 24,
+    marginTop: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#050510',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
+  },
+  heroLogo: {
+    width: 42,
+    height: 42,
+  },
+  heroCopy: {
+    maxWidth: 244,
+    color: 'rgba(255,255,255,0.72)',
+    lineHeight: 18,
+  },
+  fieldLabel: {
+    marginLeft: 2,
+    marginBottom: 8,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0,
+    textTransform: 'none',
+    color: '#3F4652',
+  },
+  fieldContainer: {
+    height: 56,
+    borderWidth: 1,
+    borderColor: '#EEF0F4',
+    borderRadius: 16,
+    backgroundColor: '#FBFBFD',
+    shadowColor: '#111827',
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
+  },
+  fieldInput: {
+    fontSize: 15,
+    color: '#16181D',
+  },
+  submitBtn: {
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: '#111214',
+  },
+  submitText: {
+    fontSize: 15,
+    letterSpacing: 0.1,
+    color: '#FFFFFF',
+  },
+  registerBtn: {
+    alignItems: 'center',
+  },
 });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, Linking, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -10,10 +10,18 @@ import { getSocket, joinVenueAvailability, leaveVenueAvailability } from '../../
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { spacing, radius } from '../../theme/spacing';
-import Button from '../../components/Button';
-import Input from '../../components/Input';
+import { Button, Input, SuccessToast } from '../../components/ui';
 import { screenPadding } from '../../theme/layout';
 import { RANK_ARRAY, getRankByTier } from '../../utils/rankings';
+import {
+  CLUB_SERVICE_OPTIONS,
+  COURT_ENCLOSURE_OPTIONS,
+  COURT_SURFACE_OPTIONS,
+  ENCLOSURE_LABELS,
+  INITIAL_VENUE_FILTERS,
+  SERVICE_LABELS,
+  SURFACE_LABELS,
+} from '../../constants/venueFilters';
 
 const INITIAL_FORM = { title: '', description: '' };
 const INITIAL_CATEGORY_RULE = {
@@ -21,6 +29,14 @@ const INITIAL_CATEGORY_RULE = {
   min_category_tier: 4,
   max_category_tier: 7,
 };
+
+function createVenueFiltersState() {
+  return {
+    services: [...INITIAL_VENUE_FILTERS.services],
+    surface: INITIAL_VENUE_FILTERS.surface,
+    enclosure: INITIAL_VENUE_FILTERS.enclosure,
+  };
+}
 
 function formatLocalDate(date) {
   const year = date.getFullYear();
@@ -34,6 +50,78 @@ function getPlayerPrice(totalCourtPrice, orderIndex) {
   return Math.round(basePrice + (orderIndex * 2000));
 }
 
+function buildVenueQueryParams(search, filters) {
+  const params = {};
+  const normalizedSearch = String(search || '').trim();
+  if (normalizedSearch) params.q = normalizedSearch;
+  if (Array.isArray(filters?.services) && filters.services.length > 0) {
+    params.services = filters.services.join(',');
+  }
+  if (filters?.surface) params.surface = filters.surface;
+  if (filters?.enclosure) params.enclosure = filters.enclosure;
+  return params;
+}
+
+function buildAvailabilityFilters(filters) {
+  const params = {};
+  if (filters?.surface) params.surface = filters.surface;
+  if (filters?.enclosure) params.enclosure = filters.enclosure;
+  return params;
+}
+
+function countActiveFilters(filters) {
+  return (filters?.services?.length || 0) + (filters?.surface ? 1 : 0) + (filters?.enclosure ? 1 : 0);
+}
+
+function getAppliedFilterLabels(filters) {
+  return [
+    ...(filters?.services || []).map((service) => SERVICE_LABELS[service] || service),
+    ...(filters?.surface ? [SURFACE_LABELS[filters.surface] || filters.surface] : []),
+    ...(filters?.enclosure ? [ENCLOSURE_LABELS[filters.enclosure] || filters.enclosure] : []),
+  ];
+}
+
+function getCourtCountLabel(venue) {
+  const matchingCount = Number(venue?.matching_court_count ?? venue?.court_count ?? 0);
+  const totalCount = Number(venue?.total_court_count ?? venue?.court_count ?? 0);
+
+  if (totalCount > 0 && matchingCount >= 0 && matchingCount !== totalCount) {
+    return `${matchingCount} de ${totalCount} canchas`;
+  }
+
+  return `${matchingCount} canchas`;
+}
+
+function getVenueServices(venue) {
+  return Array.isArray(venue?.services) ? venue.services : [];
+}
+
+function getVenueCourts(venue) {
+  return Array.isArray(venue?.courts) ? venue.courts : [];
+}
+
+function formatSpecLabel(value) {
+  if (!value) return 'Sin especificar';
+
+  return String(value)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getCourtTypeLabel(type) {
+  return formatSpecLabel(type);
+}
+
+function getCourtSurfaceLabel(surface) {
+  if (!surface) return 'Sin especificar';
+  return SURFACE_LABELS[surface] || formatSpecLabel(surface);
+}
+
+function getCourtEnclosureLabel(enclosure) {
+  if (!enclosure) return 'Sin especificar';
+  return ENCLOSURE_LABELS[enclosure] || formatSpecLabel(enclosure);
+}
+
 export default function CreateMatchScreen({ navigation }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -42,6 +130,7 @@ export default function CreateMatchScreen({ navigation }) {
   const [slots, setSlots] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [activeVenue, setActiveVenue] = useState(null);
+  const [expandedCourtId, setExpandedCourtId] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [weekOffset, setWeekOffset] = useState(0);
@@ -50,10 +139,16 @@ export default function CreateMatchScreen({ navigation }) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [categoryRule, setCategoryRule] = useState(INITIAL_CATEGORY_RULE);
   const [venueSearch, setVenueSearch] = useState('');
+  const [venueFilters, setVenueFilters] = useState(() => createVenueFiltersState());
+  const [draftVenueFilters, setDraftVenueFilters] = useState(() => createVenueFiltersState());
   const [weekPickerVisible, setWeekPickerVisible] = useState(false);
+  const [filtersVisible, setFiltersVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingVenues, setLoadingVenues] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [searchingNextDate, setSearchingNextDate] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -97,15 +192,17 @@ export default function CreateMatchScreen({ navigation }) {
     };
   }), []);
 
-  const filteredVenues = useMemo(() => {
-    const query = venueSearch.trim().toLowerCase();
-    if (!query) return venues;
-
-    return venues.filter((venue) => (
-      venue.name?.toLowerCase().includes(query)
-      || venue.address?.toLowerCase().includes(query)
-    ));
-  }, [venueSearch, venues]);
+  const activeFilterCount = useMemo(() => countActiveFilters(venueFilters), [venueFilters]);
+  const activeFilterLabels = useMemo(() => getAppliedFilterLabels(venueFilters), [venueFilters]);
+  const venueQueryParams = useMemo(() => buildVenueQueryParams(venueSearch, venueFilters), [venueSearch, venueFilters]);
+  const availabilityFilters = useMemo(() => buildAvailabilityFilters(venueFilters), [venueFilters]);
+  const selectedVenueId = selectedVenue?.id || null;
+  const activeVenueServices = useMemo(() => getVenueServices(activeVenue), [activeVenue]);
+  const activeVenueCourts = useMemo(() => getVenueCourts(activeVenue), [activeVenue]);
+  const selectedVenueCourt = useMemo(
+    () => activeVenueCourts.find((court) => court.id === expandedCourtId) || null,
+    [activeVenueCourts, expandedCourtId]
+  );
 
   const findFirstAvailableDate = useCallback(async (venueId, startDate) => {
     const startIndex = Math.max(0, dates.findIndex((date) => date.value === startDate));
@@ -115,7 +212,7 @@ export default function CreateMatchScreen({ navigation }) {
       const summary = dateSummaries.find((item) => item.date === dateValue);
       if ((summary?.available_slots || 0) === 0) continue;
 
-      const res = await courtsAPI.venueSlots(venueId, dateValue);
+      const res = await courtsAPI.venueSlots(venueId, dateValue, availabilityFilters);
       const candidateSlots = res.data.slots || [];
       if (candidateSlots.length > 0) {
         return {
@@ -127,7 +224,7 @@ export default function CreateMatchScreen({ navigation }) {
     }
 
     return null;
-  }, [dateSummaries, dates]);
+  }, [availabilityFilters, dateSummaries, dates]);
 
   const openVenueMap = useCallback(async (venue) => {
     const query = [venue?.name, venue?.address].filter(Boolean).join(' ');
@@ -140,19 +237,30 @@ export default function CreateMatchScreen({ navigation }) {
     try {
       await Linking.openURL(url);
     } catch (err) {
-      console.error(err);
       Alert.alert('No se pudo abrir el mapa', 'Proba de nuevo en unos segundos.');
     }
   }, []);
 
-  const loadVenues = useCallback(async () => {
+  const loadVenues = useCallback(async (params = venueQueryParams) => {
+    setLoadingVenues(true);
     try {
-      const res = await courtsAPI.venues();
-      setVenues(res.data.venues || []);
+      const res = await courtsAPI.venues(params);
+      const nextVenues = res.data.venues || [];
+      setVenues(nextVenues);
+      setSelectedVenue((current) => {
+        if (!current) return current;
+        return nextVenues.find((venue) => venue.id === current.id) || current;
+      });
+      setActiveVenue((current) => {
+        if (!current) return current;
+        return nextVenues.find((venue) => venue.id === current.id) || current;
+      });
     } catch (err) {
-      console.error(err);
+      setVenues([]);
+    } finally {
+      setLoadingVenues(false);
     }
-  }, []);
+  }, [venueQueryParams]);
 
   const loadDateSummaries = useCallback(async (venueId) => {
     if (!venueId) return;
@@ -160,20 +268,19 @@ export default function CreateMatchScreen({ navigation }) {
     try {
       const from = dates[0]?.value;
       const to = dates[dates.length - 1]?.value;
-      const res = await courtsAPI.venueAvailabilitySummary(venueId, from, to);
+      const res = await courtsAPI.venueAvailabilitySummary(venueId, from, to, availabilityFilters);
       setDateSummaries(res.data.date_summaries || []);
     } catch (err) {
-      console.error(err);
       setDateSummaries([]);
     }
-  }, [dates]);
+  }, [availabilityFilters, dates]);
 
   const fetchSlots = useCallback(async () => {
-    if (!selectedVenue || !selectedDate) return;
+    if (!selectedVenueId || !selectedDate) return;
 
     setLoadingSlots(true);
     try {
-      const res = await courtsAPI.venueSlots(selectedVenue.id, selectedDate);
+      const res = await courtsAPI.venueSlots(selectedVenueId, selectedDate, availabilityFilters);
       const nextSlots = res.data.slots || [];
       setSelectedDateSummary(res.data.summary || null);
 
@@ -192,19 +299,25 @@ export default function CreateMatchScreen({ navigation }) {
         return stillAvailable || null;
       });
     } catch (err) {
-      console.error(err);
       setSlots([]);
       setSelectedSlot(null);
       setSelectedDateSummary(null);
     } finally {
       setLoadingSlots(false);
     }
-  }, [selectedVenue, selectedDate]);
+  }, [availabilityFilters, selectedDate, selectedVenueId]);
 
   useEffect(() => {
-    loadVenues();
     setSelectedDate(formatLocalDate(new Date()));
-  }, [loadVenues]);
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadVenues(venueQueryParams);
+    }, venueSearch.trim() ? 250 : 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [loadVenues, venueQueryParams, venueSearch]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -216,41 +329,41 @@ export default function CreateMatchScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadVenues();
-      if (selectedVenue?.id && selectedDate) {
+      loadVenues(venueQueryParams);
+      if (selectedVenueId && selectedDate) {
         fetchSlots();
-        loadDateSummaries(selectedVenue.id);
+        loadDateSummaries(selectedVenueId);
       }
-    }, [fetchSlots, loadDateSummaries, loadVenues, selectedDate, selectedVenue?.id])
+    }, [fetchSlots, loadDateSummaries, loadVenues, selectedDate, selectedVenueId, venueQueryParams])
   );
 
   useEffect(() => {
-    if (!selectedVenue || !selectedDate) return undefined;
+    if (!selectedVenueId || !selectedDate) return undefined;
 
     fetchSlots();
-    loadDateSummaries(selectedVenue.id);
-    joinVenueAvailability(selectedVenue.id, selectedDate);
+    loadDateSummaries(selectedVenueId);
+    joinVenueAvailability(selectedVenueId, selectedDate);
 
     const socket = getSocket();
     if (!socket) {
-      return () => leaveVenueAvailability(selectedVenue.id, selectedDate);
+      return () => leaveVenueAvailability(selectedVenueId, selectedDate);
     }
 
     const handleAvailabilityUpdate = (payload) => {
-      if (payload?.venue_id !== selectedVenue.id) return;
+      if (payload?.venue_id !== selectedVenueId) return;
       if (payload?.date && payload.date !== selectedDate) {
-        loadDateSummaries(selectedVenue.id);
+        loadDateSummaries(selectedVenueId);
         return;
       }
 
       fetchSlots();
-      loadDateSummaries(selectedVenue.id);
+      loadDateSummaries(selectedVenueId);
     };
 
     const handleReconnect = () => {
-      joinVenueAvailability(selectedVenue.id, selectedDate);
+      joinVenueAvailability(selectedVenueId, selectedDate);
       fetchSlots();
-      loadDateSummaries(selectedVenue.id);
+      loadDateSummaries(selectedVenueId);
     };
 
     socket.on('venue_availability_updated', handleAvailabilityUpdate);
@@ -259,23 +372,27 @@ export default function CreateMatchScreen({ navigation }) {
     return () => {
       socket.off('venue_availability_updated', handleAvailabilityUpdate);
       socket.off('connect', handleReconnect);
-      leaveVenueAvailability(selectedVenue.id, selectedDate);
+      leaveVenueAvailability(selectedVenueId, selectedDate);
     };
-  }, [fetchSlots, loadDateSummaries, selectedVenue, selectedDate]);
+  }, [fetchSlots, loadDateSummaries, selectedDate, selectedVenueId]);
 
   useEffect(() => {
     setSelectedSlot(null);
     setSlots([]);
     setDateSummaries([]);
     setSelectedDateSummary(null);
-  }, [selectedVenue?.id]);
+  }, [selectedVenueId]);
+
+  useEffect(() => {
+    setExpandedCourtId(null);
+  }, [activeVenue?.id]);
 
   const handleFindNextAvailableDate = useCallback(async () => {
-    if (!selectedVenue || !selectedDate) return;
+    if (!selectedVenueId || !selectedDate) return;
 
     setSearchingNextDate(true);
     try {
-      const fallback = await findFirstAvailableDate(selectedVenue.id, selectedDate);
+      const fallback = await findFirstAvailableDate(selectedVenueId, selectedDate);
       if (!fallback) {
         Alert.alert('Sin turnos', 'No encontramos turnos disponibles en los proximos dias.');
         return;
@@ -288,24 +405,59 @@ export default function CreateMatchScreen({ navigation }) {
     } finally {
       setSearchingNextDate(false);
     }
-  }, [findFirstAvailableDate, selectedDate, selectedVenue]);
+  }, [findFirstAvailableDate, selectedDate, selectedVenueId]);
 
-  const resetCreateMatchFlow = useCallback(() => {
-    setStep(1);
+  const clearVenueSelectionState = useCallback(() => {
     setSelectedVenue(null);
     setActiveVenue(null);
     setSelectedSlot(null);
-    setSelectedDate(formatLocalDate(new Date()));
-    setWeekOffset(0);
+    setSlots([]);
     setDateSummaries([]);
     setSelectedDateSummary(null);
-    setSlots([]);
+  }, []);
+
+  const openFilters = useCallback(() => {
+    setDraftVenueFilters({
+      services: [...venueFilters.services],
+      surface: venueFilters.surface,
+      enclosure: venueFilters.enclosure,
+    });
+    setFiltersVisible(true);
+  }, [venueFilters]);
+
+  const toggleDraftService = useCallback((service) => {
+    setDraftVenueFilters((current) => ({
+      ...current,
+      services: current.services.includes(service)
+        ? current.services.filter((item) => item !== service)
+        : [...current.services, service],
+    }));
+  }, []);
+
+  const applyFilters = useCallback(() => {
+    setVenueFilters({
+      services: [...draftVenueFilters.services],
+      surface: draftVenueFilters.surface,
+      enclosure: draftVenueFilters.enclosure,
+    });
+    clearVenueSelectionState();
+    setFiltersVisible(false);
+  }, [clearVenueSelectionState, draftVenueFilters]);
+
+  const resetCreateMatchFlow = useCallback(() => {
+    setStep(1);
+    clearVenueSelectionState();
+    setSelectedDate(formatLocalDate(new Date()));
+    setWeekOffset(0);
     setForm(INITIAL_FORM);
     setCategoryRule(INITIAL_CATEGORY_RULE);
     setVenueSearch('');
+    setVenueFilters(createVenueFiltersState());
+    setDraftVenueFilters(createVenueFiltersState());
     setWeekPickerVisible(false);
+    setFiltersVisible(false);
     setSearchingNextDate(false);
-  }, []);
+  }, [clearVenueSelectionState]);
 
   async function handleCreate() {
     if (!selectedVenue) return Alert.alert('Error', 'Selecciona una sede');
@@ -327,14 +479,12 @@ export default function CreateMatchScreen({ navigation }) {
       const createdMatchId = res.data.match.id;
       resetCreateMatchFlow();
 
-      Alert.alert('Partido creado', 'Tu partido ya esta visible en el buscador', [
-        {
-          text: 'Ver partido',
-          onPress: () => navigation.navigate('Home', { screen: 'MatchDetail', params: { matchId: createdMatchId } }),
-        },
-        { text: 'Ok', style: 'cancel' },
-      ]);
-      navigation.navigate('Inicio');
+      setToastMessage('Partido creado exitosamente');
+      setToastVisible(true);
+
+      setTimeout(() => {
+        navigation.navigate('Home', { screen: 'MatchDetail', params: { matchId: createdMatchId } });
+      }, 1200);
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {
@@ -404,7 +554,7 @@ export default function CreateMatchScreen({ navigation }) {
     if (step === 2) {
       return (
         <View style={styles.btnRow}>
-          <Button title="Atras" onPress={() => setStep(1)} variant="secondary" style={styles.secondaryActionButton} size="md" textStyle={styles.secondaryActionText} />
+          <Button title="Atras" onPress={() => setStep(1)} variant="outline" style={styles.secondaryActionButton} size="md" textStyle={styles.secondaryActionText} />
           <Button
             title="Siguiente"
             onPress={() => {
@@ -421,133 +571,216 @@ export default function CreateMatchScreen({ navigation }) {
 
     return (
       <View style={styles.btnRow}>
-        <Button title="Atras" onPress={() => setStep(2)} variant="secondary" style={styles.secondaryActionButton} size="md" textStyle={styles.secondaryActionText} />
+        <Button title="Atras" onPress={() => setStep(2)} variant="outline" style={styles.secondaryActionButton} size="md" textStyle={styles.secondaryActionText} />
         <Button title="Confirmar" onPress={handleCreate} loading={loading} style={styles.primaryActionButton} size="md" textStyle={styles.primaryActionText} />
       </View>
     );
   };
 
-  const actionBarBottom = 64 + Math.max(insets.bottom, spacing.xs);
-  const shouldShowActionBar = step !== 1 || Boolean(selectedVenue);
+  const shouldShowFooterActions = step !== 1 || Boolean(selectedVenue);
+  const floatingActionBottom = Math.max(insets.bottom, spacing.sm);
+  const floatingActionHeight = step === 1 ? 96 : 104;
+  const shouldRenderFloatingFade = shouldShowFooterActions && step !== 3;
+  const floatingActionFadeHeight = shouldRenderFloatingFade
+    ? floatingActionBottom + floatingActionHeight + spacing.lg
+    : 0;
+  const scrollBottomPadding = shouldShowFooterActions
+    ? floatingActionBottom + floatingActionHeight + (step === 3 ? spacing.md : spacing.lg)
+    : insets.bottom + spacing.xxl;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.headerContainer}>
-        <Text style={[typography.h2, { color: colors.text.primary }]}>Crear Partido</Text>
-        <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]}>
-          Elegi la sede y el horario. La cancha la asigna el sistema.
-        </Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerTextBlock}>
+            <Text style={[typography.h2, { color: colors.text.primary }]}>Crear Partido</Text>
+            <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]}>
+              Elegi sede, turno y detalles sin perder espacio util.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Inicio')}
+            style={[styles.headerCloseButton, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}
+            activeOpacity={0.8}
+          >
+            <Feather name="x" size={18} color={colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          {
+            paddingBottom: scrollBottomPadding
+          }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {renderStepIndicator()}
 
         {step === 1 && (
           <View style={styles.venueColumn}>
-            <View style={styles.venueSectionHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={[typography.subtitle, { color: colors.text.primary }]}>Elegi la sede</Text>
-                <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]}>
-                  Busca rapido y compara ubicacion, canchas y precio base.
-                </Text>
-              </View>
-              <View style={[styles.venueCountChip, { backgroundColor: colors.surfaceHighlight }]}>
-                <Text style={[typography.captionMedium, { color: colors.text.primary }]}>
-                  {filteredVenues.length} sedes
-                </Text>
-              </View>
-            </View>
-            <Input
-              label="Buscar sede"
-              value={venueSearch}
-              onChangeText={setVenueSearch}
-              placeholder="Nombre o direccion"
-              icon={<Feather name="search" size={16} color={colors.text.tertiary} />}
-            />
-            {selectedVenue ? (
-              <View style={[styles.selectedVenueCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
-                <View style={styles.selectedVenueHeader}>
-                  <View>
-                    <Text style={[typography.label, { color: colors.text.tertiary }]}>SEDE ELEGIDA</Text>
-                    <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 2 }]}>
-                      {selectedVenue.name}
-                    </Text>
-                  </View>
-                  <Feather name="check-circle" size={18} color={colors.accent} />
+            <View style={styles.searchControlsRow}>
+              <Input
+                label="Buscar sede"
+                value={venueSearch}
+                onChangeText={setVenueSearch}
+                placeholder="Nombre o direccion"
+                leftIcon={<Feather name="search" size={16} color={colors.text.tertiary} />}
+                style={styles.searchInputWrap}
+              />
+              <TouchableOpacity
+                activeOpacity={0.82}
+                onPress={openFilters}
+                style={[
+                  styles.filterButton,
+                  {
+                    backgroundColor: activeFilterCount > 0 ? colors.text.primary : colors.surface,
+                    borderColor: activeFilterCount > 0 ? colors.text.primary : colors.borderLight,
+                  }
+                ]}
+              >
+                <View
+                  style={[
+                    styles.filterIconWrap,
+                    {
+                      backgroundColor: activeFilterCount > 0 ? 'rgba(167, 206, 41, 0.16)' : colors.surfaceHighlight,
+                      borderColor: activeFilterCount > 0 ? 'rgba(167, 206, 41, 0.24)' : colors.borderLight,
+                    }
+                  ]}
+                >
+                  <Feather name="sliders" size={16} color={activeFilterCount > 0 ? colors.accent : colors.text.primary} />
                 </View>
-                <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 6 }]} numberOfLines={2}>
-                  {selectedVenue.address || 'Direccion no disponible'}
+                <Text style={[styles.filterButtonLabel, { color: activeFilterCount > 0 ? colors.text.inverse : colors.text.primary }]}>
+                  Filtros
+                </Text>
+                {activeFilterCount > 0 ? (
+                  <View style={[styles.filterCountBadge, styles.filterCountBadgeInline, { backgroundColor: colors.accent }]}>
+                    <Text style={[typography.captionMedium, { color: colors.text.inverse }]}>{activeFilterCount}</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            </View>
+
+            {activeFilterLabels.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activeFiltersStrip}>
+                {activeFilterLabels.map((label) => (
+                  <View key={label} style={[styles.activeFilterChip, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                    <Text style={[typography.captionMedium, { color: colors.text.primary }]}>{label}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {loadingVenues ? (
+              <View style={styles.searchEmptyState}>
+                <ActivityIndicator color={colors.text.primary} />
+                <Text style={[typography.caption, { color: colors.text.secondary, textAlign: 'center', marginTop: spacing.sm }]}>
+                  Buscando sedes...
                 </Text>
               </View>
-            ) : null}
-            {filteredVenues.map((venue) => {
+            ) : venues.map((venue) => {
               const isSelected = selectedVenue?.id === venue.id;
+              const venueImage = resolveAssetUrl(venue.image);
 
               return (
-                <TouchableOpacity
+                <View
                   key={venue.id}
                   style={[
                     styles.optionCard,
                     { borderColor: colors.borderLight, backgroundColor: colors.surface },
                     isSelected && { backgroundColor: colors.surfaceHighlight, borderColor: colors.text.primary }
                   ]}
-                  onPress={() => setSelectedVenue(venue)}
-                  activeOpacity={0.7}
                 >
-                  {resolveAssetUrl(venue.image) ? (
-                    <Image source={{ uri: resolveAssetUrl(venue.image) }} style={styles.optionImage} />
-                  ) : (
-                    <View style={[styles.optionIcon, { backgroundColor: isSelected ? colors.text.primary : colors.surfaceHighlight }]}>
-                      <Feather name="map-pin" size={18} color={isSelected ? colors.accent : colors.text.tertiary} />
-                    </View>
-                  )}
-                  <View style={styles.optionInfo}>
-                    <Text style={[typography.label, { color: colors.text.tertiary }]}>SEDE</Text>
-                    <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 2 }]}>{venue.name}</Text>
-                    <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]} numberOfLines={2}>
-                      {venue.address}
-                    </Text>
-                    <View style={styles.metaRow}>
-                      <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
-                        <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                          {venue.court_count || 0} canchas
-                        </Text>
+                  <View style={styles.optionTopRow}>
+                    {venueImage ? (
+                      <Image source={{ uri: venueImage }} style={styles.optionImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.optionImageFallback, { backgroundColor: isSelected ? colors.text.primary : colors.surfaceHighlight }]}>
+                        <Feather name="map-pin" size={22} color={isSelected ? colors.accent : colors.text.tertiary} />
                       </View>
-                      {venue.price_per_slot ? (
+                    )}
+
+                    <View style={styles.optionInfo}>
+                      <View style={styles.optionTitleRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[typography.label, { color: colors.text.tertiary }]}>SEDE</Text>
+                          <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 2 }]}>{venue.name}</Text>
+                        </View>
+                        <View style={[styles.selectionDot, { backgroundColor: isSelected ? colors.text.primary : colors.background, borderColor: isSelected ? colors.text.primary : colors.borderLight }]}>
+                          <Feather name={isSelected ? 'check' : 'circle'} size={14} color={isSelected ? colors.accent : colors.text.tertiary} />
+                        </View>
+                      </View>
+
+                      <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 4 }]} numberOfLines={2}>
+                        {venue.address || 'Direccion no disponible'}
+                      </Text>
+
+                      <View style={styles.metaRow}>
                         <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
                           <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                            Desde ${getPlayerPrice(venue.price_per_slot, 0).toLocaleString('es-AR')}
+                            {getCourtCountLabel(venue)}
                           </Text>
                         </View>
-                      ) : null}
+                        {venue.price_per_slot ? (
+                          <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
+                            <Text style={[typography.caption, { color: colors.text.secondary }]}>
+                              Desde ${getPlayerPrice(venue.price_per_slot, 0).toLocaleString('es-AR')}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.optionFooterRow}>
+                        {venue.phone ? (
+                          <Text style={[typography.caption, { color: colors.text.tertiary, flex: 1 }]} numberOfLines={1}>
+                            {venue.phone}
+                          </Text>
+                        ) : (
+                          <View style={{ flex: 1 }} />
+                        )}
+
+                        <TouchableOpacity
+                          onPress={() => setActiveVenue(venue)}
+                          style={[styles.detailButton, { borderColor: colors.borderLight, backgroundColor: colors.background }]}
+                          activeOpacity={0.75}
+                        >
+                          <Feather name="info" size={14} color={colors.text.secondary} />
+                          <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>Detalle</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    {venue.phone ? (
-                      <Text style={[typography.caption, { color: colors.text.tertiary, marginTop: 2 }]} numberOfLines={1}>
-                        {venue.phone}
-                      </Text>
-                    ) : null}
                   </View>
-                  <View style={styles.optionActions}>
+
+                  <View style={styles.optionBottomRow}>
                     <TouchableOpacity
-                      onPress={() => setActiveVenue(venue)}
-                      style={[styles.infoButton, { borderColor: colors.borderLight, backgroundColor: colors.background }]}
-                      activeOpacity={0.75}
+                      onPress={() => setSelectedVenue((current) => (current?.id === venue.id ? null : venue))}
+                      activeOpacity={0.8}
+                      style={[
+                        styles.selectionPill,
+                        {
+                          borderColor: isSelected ? colors.text.primary : colors.borderLight,
+                          backgroundColor: isSelected ? colors.text.primary : colors.background
+                        }
+                      ]}
                     >
-                      <Feather name="info" size={15} color={colors.text.secondary} />
-                    </TouchableOpacity>
-                    <View style={[styles.selectionPill, { borderColor: isSelected ? colors.text.primary : colors.borderLight, backgroundColor: isSelected ? colors.text.primary : colors.background }]}>
                       <Text style={[typography.captionMedium, { color: isSelected ? colors.accent : colors.text.secondary }]}>
-                        {isSelected ? 'OK' : 'Elegir'}
+                        {isSelected ? 'Quitar seleccion' : 'Seleccionar'}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                </View>
               );
             })}
-            {filteredVenues.length === 0 ? (
+            {!loadingVenues && venues.length === 0 ? (
               <View style={styles.searchEmptyState}>
                 <Text style={[typography.caption, { color: colors.text.secondary, textAlign: 'center' }]}>
-                  No encontramos sedes con ese nombre.
+                  {activeFilterCount > 0
+                    ? 'No encontramos sedes que cumplan con esos filtros.'
+                    : venueSearch.trim()
+                      ? 'No encontramos sedes con ese nombre.'
+                      : 'Todavia no hay sedes disponibles.'}
                 </Text>
               </View>
             ) : null}
@@ -560,6 +793,16 @@ export default function CreateMatchScreen({ navigation }) {
             <Text style={[typography.caption, { color: colors.text.secondary, marginBottom: spacing.md }]}>
               {selectedVenue?.name}
             </Text>
+
+            {activeFilterLabels.length > 0 ? (
+              <View style={styles.stepFilterSummary}>
+                {activeFilterLabels.map((label) => (
+                  <View key={`step2-${label}`} style={[styles.activeFilterChip, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                    <Text style={[typography.captionMedium, { color: colors.text.primary }]}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             <View style={styles.weekSwitcher}>
               <TouchableOpacity
@@ -741,7 +984,7 @@ export default function CreateMatchScreen({ navigation }) {
               value={form.title}
               onChangeText={(v) => setForm((prev) => ({ ...prev, title: v }))}
               placeholder="Ej: Partido amistoso tarde"
-              icon={<Feather name="type" size={18} color={colors.text.tertiary} />}
+              leftIcon={<Feather name="type" size={18} color={colors.text.tertiary} />}
             />
             <Input
               label="Descripcion (opcional)"
@@ -750,7 +993,7 @@ export default function CreateMatchScreen({ navigation }) {
               placeholder="Nivel requerido, observaciones..."
               multiline
               numberOfLines={3}
-              icon={<Feather name="align-left" size={18} color={colors.text.tertiary} />}
+              leftIcon={<Feather name="align-left" size={18} color={colors.text.tertiary} />}
             />
 
             <View style={styles.categoryRuleSection}>
@@ -851,27 +1094,30 @@ export default function CreateMatchScreen({ navigation }) {
             </View>
           </View>
         )}
+
       </ScrollView>
 
-      {shouldShowActionBar ? (
-        <>
+      {shouldShowFooterActions ? (
+        <View pointerEvents="box-none" style={styles.floatingActionPortal}>
+          {shouldRenderFloatingFade ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.floatingActionFade,
+                {
+                  bottom: 0,
+                  height: floatingActionFadeHeight,
+                  backgroundColor: colors.background,
+                  opacity: 0.96,
+                }
+              ]}
+            />
+          ) : null}
           <View
-            pointerEvents="none"
             style={[
-              styles.actionBarBackdrop,
+              styles.floatingActionShell,
               {
-                backgroundColor: colors.background,
-                borderColor: colors.borderLight,
-                height: actionBarBottom + 72,
-              }
-            ]}
-          />
-
-          <View
-            style={[
-              styles.actionBar,
-              {
-                bottom: actionBarBottom,
+                bottom: floatingActionBottom,
                 backgroundColor: colors.background,
                 borderColor: colors.borderLight,
               }
@@ -879,7 +1125,7 @@ export default function CreateMatchScreen({ navigation }) {
           >
             {renderActionBar()}
           </View>
-        </>
+        </View>
       ) : null}
 
       <Modal
@@ -938,6 +1184,150 @@ export default function CreateMatchScreen({ navigation }) {
       </Modal>
 
       <Modal
+        visible={filtersVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFiltersVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setFiltersVisible(false)}
+          />
+          <View style={[styles.filterSheetCard, { backgroundColor: colors.background, borderColor: colors.borderLight }]}>
+            <View style={styles.weekPickerHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[typography.subtitle, { color: colors.text.primary }]}>Filtrar sedes</Text>
+                <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]}>
+                  Servicios del club y caracteristicas de cancha.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setFiltersVisible(false)} style={[styles.closeButton, { backgroundColor: colors.surfaceHighlight }]}>
+                <Feather name="x" size={18} color={colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.filterSheetContent}>
+              <View style={styles.filterSection}>
+                <Text style={[typography.bodyBold, { color: colors.text.primary }]}>Servicios del club</Text>
+                <View style={styles.filterChipWrap}>
+                  {CLUB_SERVICE_OPTIONS.map((option) => {
+                    const isSelected = draftVenueFilters.services.includes(option.value);
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        activeOpacity={0.82}
+                        onPress={() => toggleDraftService(option.value)}
+                        style={[
+                          styles.filterChip,
+                          { borderColor: colors.borderLight, backgroundColor: colors.surface },
+                          isSelected && { borderColor: colors.text.primary, backgroundColor: colors.text.primary }
+                        ]}
+                      >
+                        <Feather name={option.icon} size={14} color={isSelected ? colors.accent : colors.text.secondary} />
+                        <Text style={[typography.captionMedium, { color: isSelected ? colors.accent : colors.text.primary }]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterSection}>
+                <Text style={[typography.bodyBold, { color: colors.text.primary }]}>Superficie</Text>
+                <View style={styles.filterChipWrap}>
+                  <TouchableOpacity
+                    activeOpacity={0.82}
+                    onPress={() => setDraftVenueFilters((current) => ({ ...current, surface: null }))}
+                    style={[
+                      styles.filterChip,
+                      { borderColor: colors.borderLight, backgroundColor: colors.surface },
+                      !draftVenueFilters.surface && { borderColor: colors.text.primary, backgroundColor: colors.text.primary }
+                    ]}
+                  >
+                    <Text style={[typography.captionMedium, { color: !draftVenueFilters.surface ? colors.accent : colors.text.primary }]}>
+                      Cualquiera
+                    </Text>
+                  </TouchableOpacity>
+                  {COURT_SURFACE_OPTIONS.map((option) => {
+                    const isSelected = draftVenueFilters.surface === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        activeOpacity={0.82}
+                        onPress={() => setDraftVenueFilters((current) => ({ ...current, surface: option.value }))}
+                        style={[
+                          styles.filterChip,
+                          { borderColor: colors.borderLight, backgroundColor: colors.surface },
+                          isSelected && { borderColor: colors.text.primary, backgroundColor: colors.text.primary }
+                        ]}
+                      >
+                        <Text style={[typography.captionMedium, { color: isSelected ? colors.accent : colors.text.primary }]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterSection}>
+                <Text style={[typography.bodyBold, { color: colors.text.primary }]}>Cerramiento</Text>
+                <View style={styles.filterChipWrap}>
+                  <TouchableOpacity
+                    activeOpacity={0.82}
+                    onPress={() => setDraftVenueFilters((current) => ({ ...current, enclosure: null }))}
+                    style={[
+                      styles.filterChip,
+                      { borderColor: colors.borderLight, backgroundColor: colors.surface },
+                      !draftVenueFilters.enclosure && { borderColor: colors.text.primary, backgroundColor: colors.text.primary }
+                    ]}
+                  >
+                    <Text style={[typography.captionMedium, { color: !draftVenueFilters.enclosure ? colors.accent : colors.text.primary }]}>
+                      Cualquiera
+                    </Text>
+                  </TouchableOpacity>
+                  {COURT_ENCLOSURE_OPTIONS.map((option) => {
+                    const isSelected = draftVenueFilters.enclosure === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        activeOpacity={0.82}
+                        onPress={() => setDraftVenueFilters((current) => ({ ...current, enclosure: option.value }))}
+                        style={[
+                          styles.filterChip,
+                          { borderColor: colors.borderLight, backgroundColor: colors.surface },
+                          isSelected && { borderColor: colors.text.primary, backgroundColor: colors.text.primary }
+                        ]}
+                      >
+                        <Text style={[typography.captionMedium, { color: isSelected ? colors.accent : colors.text.primary }]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={[styles.filterFooter, { borderColor: colors.borderLight }]}>
+              <TouchableOpacity onPress={() => setFiltersVisible(false)} style={styles.filterFooterButton}>
+                <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setDraftVenueFilters(createVenueFiltersState())} style={styles.filterFooterButton}>
+                <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>Limpiar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={applyFilters} style={[styles.filterFooterPrimary, { backgroundColor: colors.text.primary }]}>
+                <Text style={[typography.captionMedium, { color: colors.accent }]}>Aplicar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={Boolean(activeVenue)}
         transparent
         animationType="slide"
@@ -950,73 +1340,208 @@ export default function CreateMatchScreen({ navigation }) {
             onPress={() => setActiveVenue(null)}
           />
           <View style={[styles.modalCard, { backgroundColor: colors.background }]}>
-            {resolveAssetUrl(activeVenue?.image) ? (
-              <Image source={{ uri: resolveAssetUrl(activeVenue.image) }} style={styles.modalImage} />
-            ) : (
-              <View style={[styles.modalImage, styles.modalImageFallback, { backgroundColor: colors.surfaceHighlight }]}>
-                <Feather name="map-pin" size={28} color={colors.text.secondary} />
-              </View>
-            )}
-
-            <View style={styles.modalBody}>
-              <View style={styles.modalHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.h3, { color: colors.text.primary }]}>{activeVenue?.name}</Text>
-                  <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 4 }]}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              <View style={styles.modalHero}>
+                {resolveAssetUrl(activeVenue?.image) ? (
+                  <Image source={{ uri: resolveAssetUrl(activeVenue.image) }} style={styles.modalImage} />
+                ) : (
+                  <View style={[styles.modalImage, styles.modalImageFallback, { backgroundColor: colors.surfaceHighlight }]}>
+                    <Feather name="map-pin" size={32} color={colors.text.secondary} />
+                  </View>
+                )}
+                <View style={styles.modalHeroOverlay} />
+                <View style={styles.modalHeroTop}>
+                  <View style={[styles.modalHeroBadge, { backgroundColor: 'rgba(0,0,0,0.55)' }]}>
+                    <Text style={[typography.captionMedium, { color: colors.text.inverse }]}>SEDE</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setActiveVenue(null)} style={[styles.closeButton, styles.modalHeroCloseButton, { backgroundColor: 'rgba(0,0,0,0.55)' }]}>
+                    <Feather name="x" size={18} color={colors.text.inverse} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.modalHeroBottom}>
+                  <Text style={[typography.h2, styles.modalHeroTitle, { color: colors.text.inverse }]}>{activeVenue?.name}</Text>
+                  <Text style={[typography.body, styles.modalHeroSubtitle, { color: colors.text.inverse, opacity: 0.82 }]}>
                     {activeVenue?.address || 'Direccion no disponible'}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => setActiveVenue(null)} style={[styles.closeButton, { backgroundColor: colors.surfaceHighlight }]}>
-                  <Feather name="x" size={18} color={colors.text.secondary} />
-                </TouchableOpacity>
               </View>
 
-              <View style={styles.detailsGrid}>
-                <View style={[styles.detailChip, { backgroundColor: colors.surfaceHighlight }]}>
-                  <Feather name="grid" size={14} color={colors.text.secondary} />
-                  <Text style={[typography.captionMedium, { color: colors.text.primary, marginLeft: 8 }]}>
-                    {activeVenue?.court_count || 0} canchas
-                  </Text>
+              <View style={styles.modalBody}>
+                <View style={styles.modalStatsRow}>
+                  <View style={[styles.modalStatCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                    <Text style={[typography.label, { color: colors.text.tertiary }]}>CANCHAS</Text>
+                    <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 6 }]}>{getCourtCountLabel(activeVenue)}</Text>
+                  </View>
+                  <View style={[styles.modalStatCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                    <Text style={[typography.label, { color: colors.text.tertiary }]}>PRECIO</Text>
+                    <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 6 }]}>
+                      {activeVenue?.price_per_slot
+                        ? `Desde $${getPlayerPrice(activeVenue.price_per_slot, 0).toLocaleString('es-AR')}`
+                        : 'Consultar sede'}
+                    </Text>
+                  </View>
                 </View>
-                {activeVenue?.phone ? (
-                  <View style={[styles.detailChip, { backgroundColor: colors.surfaceHighlight }]}>
-                    <Feather name="phone" size={14} color={colors.text.secondary} />
-                    <Text style={[typography.captionMedium, { color: colors.text.primary, marginLeft: 8 }]} numberOfLines={1}>
-                      {activeVenue.phone}
-                    </Text>
-                  </View>
-                ) : null}
-                {activeVenue?.price_per_slot ? (
-                  <View style={[styles.detailChip, { backgroundColor: colors.surfaceHighlight }]}>
-                    <Feather name="dollar-sign" size={14} color={colors.text.secondary} />
-                    <Text style={[typography.captionMedium, { color: colors.text.primary, marginLeft: 8 }]}>
-                      Desde ${getPlayerPrice(activeVenue.price_per_slot, 0).toLocaleString('es-AR')}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
 
-              <View style={styles.modalActions}>
-                <Button
-                  title="Abrir mapa"
-                  variant="outline"
-                  style={{ flex: 1 }}
-                  onPress={() => openVenueMap(activeVenue)}
-                />
-                <Button
-                  title="Seleccionar"
-                  variant="accent"
-                  style={{ flex: 1 }}
-                  onPress={() => {
-                    setSelectedVenue(activeVenue);
-                    setActiveVenue(null);
-                  }}
-                />
+                {(activeVenue?.phone || activeVenue?.address) ? (
+                  <View style={styles.modalSection}>
+                    <Text style={[typography.captionMedium, styles.modalSectionEyebrow, { color: colors.text.tertiary }]}>
+                      INFORMACION GENERAL
+                    </Text>
+                    <View style={styles.modalInfoList}>
+                      {activeVenue?.address ? (
+                        <View style={[styles.modalInfoCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                          <View style={[styles.modalInfoIcon, { backgroundColor: colors.background }]}>
+                            <Feather name="map-pin" size={15} color={colors.text.secondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>Direccion</Text>
+                            <Text style={[typography.body, { color: colors.text.primary, marginTop: 4 }]}>{activeVenue.address}</Text>
+                          </View>
+                        </View>
+                      ) : null}
+                      {activeVenue?.phone ? (
+                        <View style={[styles.modalInfoCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                          <View style={[styles.modalInfoIcon, { backgroundColor: colors.background }]}>
+                            <Feather name="phone" size={15} color={colors.text.secondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>Telefono</Text>
+                            <Text style={[typography.body, { color: colors.text.primary, marginTop: 4 }]}>{activeVenue.phone}</Text>
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={styles.modalSection}>
+                  <Text style={[typography.captionMedium, styles.modalSectionEyebrow, { color: colors.text.tertiary }]}>
+                    SERVICIOS DE LA SEDE
+                  </Text>
+                  {activeVenueServices.length > 0 ? (
+                    <View style={styles.featureRow}>
+                      {activeVenueServices.map((service) => (
+                        <View key={`service-${service}`} style={[styles.modalPill, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                          <Text style={[typography.captionMedium, { color: colors.text.primary }]}>{SERVICE_LABELS[service] || service}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={[styles.modalEmptyStateCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                      <Text style={[typography.body, { color: colors.text.secondary }]}>Sin servicios cargados.</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={[typography.captionMedium, styles.modalSectionEyebrow, { color: colors.text.tertiary }]}>
+                    CANCHAS DE LA SEDE
+                  </Text>
+                  {activeVenueCourts.length > 0 ? (
+                    <>
+                      <View style={styles.modalCourtList}>
+                        {activeVenueCourts.map((court) => {
+                          const isExpanded = expandedCourtId === court.id;
+
+                          return (
+                            <TouchableOpacity
+                              key={`venue-court-${court.id}`}
+                              activeOpacity={0.86}
+                              style={[
+                                styles.modalCourtCard,
+                                {
+                                  backgroundColor: isExpanded ? colors.surface : colors.surfaceHighlight,
+                                  borderColor: isExpanded ? colors.text.primary : colors.borderLight,
+                                }
+                              ]}
+                              onPress={() => setExpandedCourtId((current) => (current === court.id ? null : court.id))}
+                            >
+                              <View style={styles.modalCourtHeader}>
+                                <View style={styles.modalCourtHeaderContent}>
+                                  <Text style={[typography.bodyBold, { color: colors.text.primary }]}>
+                                    {court.name || `Cancha ${court.id}`}
+                                  </Text>
+                                  <Text style={[typography.captionMedium, styles.modalCourtMeta, { color: colors.text.secondary }]}>
+                                    {getCourtTypeLabel(court.type)}
+                                  </Text>
+                                </View>
+                                <View style={[styles.modalInfoIcon, { backgroundColor: isExpanded ? colors.text.primary : colors.background }]}>
+                                  <Feather
+                                    name={isExpanded ? 'check' : 'chevron-right'}
+                                    size={16}
+                                    color={isExpanded ? colors.text.inverse : colors.text.secondary}
+                                  />
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      {selectedVenueCourt ? (
+                        <View style={[styles.modalCourtDetailCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                          <Text style={[typography.captionMedium, styles.modalSectionEyebrow, { color: colors.text.tertiary, marginBottom: spacing.md }]}>
+                            ESPECIFICACIONES DE {selectedVenueCourt.name || `CANCHA ${selectedVenueCourt.id}`}
+                          </Text>
+                          <View style={styles.modalCourtSpecs}>
+                            <View style={styles.modalCourtSpecRow}>
+                              <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>Tipo</Text>
+                              <Text style={[typography.body, { color: colors.text.primary }]}>{getCourtTypeLabel(selectedVenueCourt.type)}</Text>
+                            </View>
+                            <View style={styles.modalCourtSpecRow}>
+                              <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>Superficie</Text>
+                              <Text style={[typography.body, { color: colors.text.primary }]}>{getCourtSurfaceLabel(selectedVenueCourt.surface)}</Text>
+                            </View>
+                            <View style={styles.modalCourtSpecRow}>
+                              <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>Cerramiento</Text>
+                              <Text style={[typography.body, { color: colors.text.primary }]}>{getCourtEnclosureLabel(selectedVenueCourt.enclosure)}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      ) : (
+                        <View style={[styles.modalEmptyStateCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                          <Text style={[typography.body, { color: colors.text.secondary }]}>Toca una cancha para ver sus especificaciones.</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View style={[styles.modalEmptyStateCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                      <Text style={[typography.body, { color: colors.text.secondary }]}>Sin canchas cargadas.</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.modalActions}>
+                  <Button
+                    title="Abrir mapa"
+                    variant="outline"
+                    style={{ flex: 1 }}
+                    onPress={() => openVenueMap(activeVenue)}
+                  />
+                  <Button
+                    title="Seleccionar"
+                    variant="solid"
+                    style={{ flex: 1 }}
+                    onPress={() => {
+                      setSelectedVenue(activeVenue);
+                      setActiveVenue(null);
+                    }}
+                  />
+                </View>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
+      <SuccessToast
+        visible={toastVisible}
+        message={toastMessage}
+        onDismiss={() => setToastVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1025,11 +1550,27 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerContainer: {
     paddingHorizontal: screenPadding.horizontal,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
-  scroll: { paddingHorizontal: screenPadding.horizontal, paddingBottom: 220 },
-  stepIndicator: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: spacing.xl },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  headerTextBlock: {
+    flex: 1,
+  },
+  headerCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scroll: { paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.xs },
+  stepIndicator: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: spacing.lg },
   stepItem: { flexDirection: 'row', alignItems: 'center' },
   stepBadge: {
     width: 24,
@@ -1038,66 +1579,118 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepLine: { width: 24, height: 1, marginRight: 8 },
+  stepLine: { width: 16, height: 1, marginRight: 8 },
   venueColumn: {
-    width: '94%',
-    alignSelf: 'center',
+    width: '100%',
+  },
+  searchControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  searchInputWrap: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  filterButton: {
+    minWidth: 108,
+    height: 52,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    flexShrink: 0,
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  filterIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  filterButtonLabel: {
+    ...typography.captionMedium,
+    fontSize: 13,
+  },
+  filterCountBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  filterCountBadgeInline: {
+    marginLeft: 2,
+  },
+  activeFiltersStrip: {
+    marginBottom: spacing.md,
+  },
+  activeFilterChip: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: spacing.sm,
   },
   venueSectionHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   venueCountChip: {
     borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  selectedVenueCard: {
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  selectedVenueHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   optionCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  optionTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
   },
   optionImage: {
-    width: 64,
-    height: 64,
+    width: 92,
+    height: 92,
     borderRadius: radius.md,
     marginRight: 12,
   },
-  optionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  optionImageFallback: {
+    width: 92,
+    height: 92,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   optionInfo: { flex: 1 },
-  optionActions: {
+  optionTitleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    alignSelf: 'stretch',
-    paddingLeft: 10,
   },
-  infoButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  selectionDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1114,15 +1707,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+  featureRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  optionFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  detailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  optionBottomRow: {
+    marginTop: spacing.sm,
+    alignItems: 'flex-start',
+  },
   selectionPill: {
-    minWidth: 54,
-    height: 24,
-    paddingHorizontal: 8,
-    borderRadius: 14,
+    minWidth: 110,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: spacing.sm,
   },
   weekSwitcher: {
     flexDirection: 'row',
@@ -1232,40 +1850,57 @@ const styles = StyleSheet.create({
   },
   searchEmptyState: {
     paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionBarBackdrop: {
+  stepFilterSummary: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  floatingActionPortal: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    zIndex: 10,
+    elevation: 10,
+  },
+  floatingActionFade: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    opacity: 0.96,
   },
-  actionBar: {
+  floatingActionShell: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    paddingHorizontal: screenPadding.horizontal,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    borderTopWidth: 1,
+    left: screenPadding.horizontal,
+    right: screenPadding.horizontal,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.sm,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   btnRow: { flexDirection: 'row', gap: spacing.sm },
   singleActionRow: {
     justifyContent: 'center',
   },
   primaryActionButton: {
-    flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: '68%',
+    flex: 1,
     alignSelf: 'center',
+    minHeight: 52,
+    borderRadius: radius.lg,
   },
   secondaryActionButton: {
-    flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: '38%',
+    flex: 0.9,
+    minHeight: 52,
+    borderRadius: radius.lg,
   },
   primaryActionText: {
     ...typography.bodyBold,
-    color: '#FFFFFF',
   },
   secondaryActionText: {
     ...typography.bodyBold,
@@ -1302,15 +1937,103 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
+  filterSheetCard: {
+    maxHeight: '82%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    padding: spacing.lg,
+  },
+  filterSheetContent: {
+    gap: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  filterSection: {
+    gap: spacing.sm,
+  },
+  filterChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  filterFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+  },
+  filterFooterButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  filterFooterPrimary: {
+    minWidth: 92,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
   modalCard: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
-    maxHeight: '85%',
+    maxHeight: '92%',
+  },
+  modalScrollContent: {
+    paddingBottom: spacing.lg,
+  },
+  modalHero: {
+    position: 'relative',
+  },
+  modalHeroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+  },
+  modalHeroTop: {
+    position: 'absolute',
+    top: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalHeroBadge: {
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  modalHeroCloseButton: {
+    borderWidth: 0,
+  },
+  modalHeroBottom: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.lg,
+  },
+  modalHeroTitle: {
+    letterSpacing: -0.4,
+  },
+  modalHeroSubtitle: {
+    marginTop: 6,
   },
   modalImage: {
     width: '100%',
-    height: 180,
+    height: 240,
   },
   modalImageFallback: {
     alignItems: 'center',
@@ -1319,12 +2042,6 @@ const styles = StyleSheet.create({
   modalBody: {
     padding: spacing.lg,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
   closeButton: {
     width: 34,
     height: 34,
@@ -1332,16 +2049,89 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailsGrid: {
-    marginTop: spacing.md,
+  modalStatsRow: {
+    flexDirection: 'row',
     gap: spacing.sm,
   },
-  detailChip: {
+  modalStatCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  modalSection: {
+    marginTop: spacing.md,
+  },
+  modalSectionEyebrow: {
+    marginBottom: spacing.sm,
+    letterSpacing: 0.9,
+  },
+  modalInfoList: {
+    gap: spacing.sm,
+  },
+  modalInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  modalInfoIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalPill: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  modalEmptyStateCard: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  modalCourtList: {
+    gap: spacing.sm,
+  },
+  modalCourtCard: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  modalCourtDetailCard: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+  },
+  modalCourtHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  modalCourtHeaderContent: {
+    flex: 1,
+  },
+  modalCourtMeta: {
+    marginTop: 4,
+  },
+  modalCourtSpecs: {
+    gap: spacing.sm,
+  },
+  modalCourtSpecRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   modalActions: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Mail, Lock, ChevronRight, Trophy, Smartphone, ShieldCheck } from 'lucide-react';
 import { api } from '../../lib/runtime';
 import ballMark from '../../assets/ball-mark.png';
@@ -33,7 +33,7 @@ const Landing = ({ onLogin }) => {
           <span>PADEX <strong>PARTNERS</strong></span>
         </div>
 
-        <motion.div 
+        <Motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -41,7 +41,7 @@ const Landing = ({ onLogin }) => {
         >
           <h1>Lleva tu club al <span>siguiente nivel</span>.</h1>
           <p>La plataforma definitiva para managers de pádel. Gestión inteligente, automatización y una experiencia premium para tus jugadores.</p>
-        </motion.div>
+        </Motion.div>
 
         <div className="features-grid">
           <div className="feature-item">
@@ -70,7 +70,7 @@ const Landing = ({ onLogin }) => {
 
       {/* Right Side: Login */}
       <section className="landing-auth glass">
-        <motion.div 
+        <Motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="auth-card"
@@ -116,7 +116,7 @@ const Landing = ({ onLogin }) => {
           <div className="auth-footer">
             <p>¿No tienes una cuenta? Contacta con soporte@padex.com</p>
           </div>
-        </motion.div>
+        </Motion.div>
       </section>
 
       <style dangerouslySetInnerHTML={{ __html: `

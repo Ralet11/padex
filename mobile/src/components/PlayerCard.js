@@ -5,29 +5,28 @@ import { useTheme } from '../theme/ThemeContext';
 import { radius, spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import Avatar from './Avatar';
-
-const CATEGORY_COLOR = {
-  principiante: '#A1A1AA',
-  intermedio: '#3B82F6',
-  avanzado: '#F59E0B',
-  profesional: '#10B981', // Padel Green
-};
+import { getRankByTier } from '../utils/rankings';
+import { getCompetitiveRating, getCompetitiveTier, getReputationScore } from '../utils/domain';
 
 const POSITION_LABEL = { drive: 'Drive', reves: 'Revés' };
 
 export default function PlayerCard({ player, onPress, actionButton }) {
   const { colors } = useTheme();
-  const catColor = CATEGORY_COLOR[player.category?.toLowerCase()] || colors.text.primary;
+  const tier = getCompetitiveTier(player);
+  const rank = getRankByTier(tier);
+  const catColor = rank.starColor || colors.text.primary;
+  const reputationScore = getReputationScore(player);
+  const competitiveRating = getCompetitiveRating(player);
 
   return (
     <TouchableOpacity style={[styles.card, { borderBottomColor: colors.borderLight }]} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.left}>
-        <Avatar name={player.name} uri={player.avatar} size={52} category={player.category} />
+        <Avatar name={player.name} uri={player.avatar} size={52} category={rank.name} />
         <View style={styles.info}>
           <Text style={[typography.bodyBold, { color: colors.text.primary, marginBottom: 2 }]} numberOfLines={1}>{player.name}</Text>
           <View style={styles.tags}>
             <View style={[styles.tag, { backgroundColor: catColor + '15', borderColor: catColor + '30' }]}>
-              <Text style={[typography.captionMedium, { color: catColor, textTransform: 'capitalize' }]}>{player.category}</Text>
+              <Text style={[typography.captionMedium, { color: catColor }]}>{rank.name}</Text>
             </View>
             {player.position && (
               <View style={[styles.tag, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
@@ -37,11 +36,11 @@ export default function PlayerCard({ player, onPress, actionButton }) {
           </View>
           <View style={styles.stats}>
             <Text style={[typography.caption, { color: colors.text.tertiary }]}>
-              ⭐ {player.elo} ELO
+              ⭐ {competitiveRating}
             </Text>
-            {player.avg_rating > 0 && (
-              <Text style={[typography.caption, { color: colors.text.tertiary }]}>
-                · <Feather name="star" size={10} color={colors.text.tertiary} /> {player.avg_rating}
+            {reputationScore > 0 && (
+              <Text style={[typography.caption, { color: colors.text.tertiary }]}> 
+                · <Feather name="star" size={10} color={colors.text.tertiary} /> {reputationScore}
               </Text>
             )}
           </View>

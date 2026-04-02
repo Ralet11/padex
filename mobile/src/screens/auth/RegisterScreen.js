@@ -1,26 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableOpacity,
-  Alert,
-  Keyboard,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import { User, Mail, Lock } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState } from 'react';
+import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Typography } from '../../components/ui/Typography';
-import { Card } from '../../components/ui/Card';
-import { screenPadding } from '../../theme/layout';
-import BrandLockup from '../../components/branding/BrandLockup';
+import AuthShell from '../../components/auth/AuthShell';
 
 const CATEGORIES = [
   { value: 'principiante', label: 'Principiante', emoji: '\u{1F331}', elo: '~800' },
@@ -37,7 +22,6 @@ const POSITIONS = [
 export default function RegisterScreen({ navigation }) {
   const { register } = useAuth();
   const { colors, spacing, radius } = useTheme();
-  const [keyboardInset, setKeyboardInset] = useState(0);
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -88,286 +72,401 @@ export default function RegisterScreen({ navigation }) {
     }
   }
 
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSubscription = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardInset((event.endCoordinates?.height ?? 0) + spacing.lg);
-    });
-
-    const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      setKeyboardInset(0);
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, [spacing.lg]);
-
   return (
-    <LinearGradient
-      colors={['#050510', colors.background, colors.background]}
-      style={styles.gradient}
-    >
-      <StatusBar style="light" hidden={false} />
-      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
-          style={styles.flex}
-        >
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollContent,
+    <AuthShell
+      headerTitle="Crear cuenta"
+      onBackPress={() => (step === 1 ? navigation.goBack() : setStep(1))}
+      title={step === 1 ? 'Tus datos' : 'Perfil de juego'}
+      subtitle={
+        step === 1
+          ? 'Arma tu acceso y despues terminamos de ajustar tu nivel.'
+          : 'Elegi tu nivel y posicion para entrar con mejores cruces.'
+      }
+      headerContent={
+        <View style={styles.heroContent}>
+          <View
+            style={[
+              styles.stepChip,
               {
-                paddingTop: spacing.lg,
-                paddingBottom: Math.max(spacing.xxl, keyboardInset),
-                paddingHorizontal: screenPadding.horizontal,
+                borderColor: `${colors.accent}34`,
+                backgroundColor: `${colors.accent}16`,
               },
             ]}
-            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-            contentInsetAdjustmentBehavior="always"
           >
-            <View style={styles.header}>
-              <BrandLockup
-                kicker={step === 1 ? 'CREA TU PERFIL' : 'AJUSTA TU NIVEL'}
-                subtitle={
-                  step === 1
-                    ? 'Crea tu perfil, suma partidos y empeza a subir tu ranking.'
-                    : 'Deja listo tu nivel y entra a jugar con mejores cruces.'
-                }
-              />
-              <Typography
-                variant="bodyMedium"
-                align="center"
-                style={[styles.headerCopy, { marginTop: spacing.md }]}
-              >
-                {step === 1 ? 'Crea tu cuenta para jugar' : 'Completa tu perfil de juego'}
-              </Typography>
-              <View style={styles.steps}>
-                {[1, 2].map((item) => (
+            <Typography variant="captionMedium" style={{ color: colors.accent }}>
+              PASO {step} DE 2
+            </Typography>
+          </View>
+          <Typography variant="body" align="center" style={styles.heroCopy}>
+            Misma familia visual que el login, con alta simple y foco en claridad.
+          </Typography>
+        </View>
+      }
+      footer={
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.loginBtn}
+          activeOpacity={0.75}
+        >
+          <Typography variant="bodyMedium" align="center" style={{ color: colors.text.secondary }}>
+            Ya tenes cuenta?{' '}
+            <Typography variant="bodyBold" style={{ color: colors.accent }}>
+              Iniciar sesion
+            </Typography>
+          </Typography>
+        </TouchableOpacity>
+      }
+      scrollContentStyle={step === 2 ? { paddingTop: spacing.md, paddingBottom: spacing.xl } : null}
+    >
+      <View style={[styles.steps, { marginBottom: spacing.lg }]}>
+        {[1, 2].map((item) => (
+          <View
+            key={item}
+            style={[
+              styles.step,
+              {
+                backgroundColor: item <= step ? '#111214' : '#E5E7EC',
+                borderRadius: radius.full,
+              },
+            ]}
+          />
+        ))}
+      </View>
+
+      {step === 1 ? (
+        <>
+          <Input
+            label="Nombre completo"
+            value={form.name}
+            onChangeText={(value) => update('name', value)}
+            placeholder="Juan Perez"
+            error={errors.name}
+            autoComplete="name"
+            textContentType="name"
+            labelStyle={styles.fieldLabel}
+            containerStyle={styles.fieldContainer}
+            inputStyle={styles.fieldInput}
+            placeholderTextColor="#B8BEC8"
+            returnKeyType="next"
+          />
+          <Input
+            label="Email"
+            value={form.email}
+            onChangeText={(value) => update('email', value)}
+            placeholder="tu@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            error={errors.email}
+            labelStyle={styles.fieldLabel}
+            containerStyle={styles.fieldContainer}
+            inputStyle={styles.fieldInput}
+            placeholderTextColor="#B8BEC8"
+            returnKeyType="next"
+          />
+          <Input
+            label="Contrasena"
+            value={form.password}
+            onChangeText={(value) => update('password', value)}
+            placeholder="Minimo 6 caracteres"
+            secureTextEntry
+            autoCorrect={false}
+            autoComplete="new-password"
+            textContentType="newPassword"
+            error={errors.password}
+            labelStyle={styles.fieldLabel}
+            containerStyle={styles.fieldContainer}
+            inputStyle={styles.fieldInput}
+            placeholderTextColor="#B8BEC8"
+            returnKeyType="next"
+          />
+          <Input
+            label="Confirmar contrasena"
+            value={form.confirmPassword}
+            onChangeText={(value) => update('confirmPassword', value)}
+            placeholder="Repite tu contrasena"
+            secureTextEntry
+            autoCorrect={false}
+            autoComplete="new-password"
+            textContentType="password"
+            error={errors.confirmPassword}
+            labelStyle={styles.fieldLabel}
+            containerStyle={styles.fieldContainer}
+            inputStyle={styles.fieldInput}
+            placeholderTextColor="#B8BEC8"
+            returnKeyType="done"
+            onSubmitEditing={goNext}
+          />
+
+          <Button
+            title="Continuar"
+            onPress={goNext}
+            size="lg"
+            textColor="#FFFFFF"
+            style={[styles.primaryBtn, { marginTop: spacing.md }]}
+            textStyle={styles.primaryBtnText}
+          />
+        </>
+      ) : (
+        <>
+          <Typography variant="label" style={styles.sectionLabel}>
+            Elegi tu nivel
+          </Typography>
+          <Typography variant="caption" style={styles.sectionCopy}>
+            Esto define tu punto de partida y luego se ajusta con tus partidos.
+          </Typography>
+
+          <View style={styles.grid}>
+            {CATEGORIES.map((category) => {
+              const isSelected = form.self_category === category.value;
+              return (
+                <TouchableOpacity
+                  key={category.value}
+                  activeOpacity={0.82}
+                  style={[
+                    styles.optionCard,
+                    {
+                      borderColor: isSelected ? '#111214' : '#ECEEF3',
+                      backgroundColor: isSelected ? '#111214' : '#FBFBFD',
+                      borderRadius: radius.lg,
+                    },
+                  ]}
+                  onPress={() => update('self_category', category.value)}
+                >
+                  <Typography style={styles.optionEmoji}>{category.emoji}</Typography>
+                  <Typography
+                    variant="bodyBold"
+                    style={{ color: isSelected ? '#FFFFFF' : '#17181B', fontSize: 13 }}
+                  >
+                    {category.label}
+                  </Typography>
                   <View
-                    key={item}
                     style={[
-                      styles.step,
+                      styles.eloPill,
                       {
-                        backgroundColor: item <= step ? colors.primary : colors.border,
-                        borderRadius: radius.full,
+                        backgroundColor: isSelected ? `${colors.accent}26` : '#F1F3F7',
                       },
                     ]}
-                  />
-                ))}
-              </View>
-            </View>
-
-            <Card variant="glass" style={styles.card}>
-              {step === 1 ? (
-                <>
-                  <Input
-                    label="Nombre completo"
-                    value={form.name}
-                    onChangeText={(value) => update('name', value)}
-                    placeholder="Juan Perez"
-                    error={errors.name}
-                    leftIcon={<User color={colors.text.secondary} size={20} />}
-                    returnKeyType="next"
-                  />
-                  <Input
-                    label="Email"
-                    value={form.email}
-                    onChangeText={(value) => update('email', value)}
-                    placeholder="tu@email.com"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    error={errors.email}
-                    leftIcon={<Mail color={colors.text.secondary} size={20} />}
-                    returnKeyType="next"
-                  />
-                  <Input
-                    label="Contrasena"
-                    value={form.password}
-                    onChangeText={(value) => update('password', value)}
-                    placeholder="Minimo 6 caracteres"
-                    secureTextEntry
-                    autoCorrect={false}
-                    error={errors.password}
-                    leftIcon={<Lock color={colors.text.secondary} size={20} />}
-                    returnKeyType="next"
-                  />
-                  <Input
-                    label="Confirmar contrasena"
-                    value={form.confirmPassword}
-                    onChangeText={(value) => update('confirmPassword', value)}
-                    placeholder="Repite tu contrasena"
-                    secureTextEntry
-                    autoCorrect={false}
-                    error={errors.confirmPassword}
-                    leftIcon={<Lock color={colors.text.secondary} size={20} />}
-                    returnKeyType="done"
-                    onSubmitEditing={goNext}
-                  />
-
-                  <Button
-                    title="Continuar"
-                    onPress={goNext}
-                    size="lg"
-                    style={{ marginTop: spacing.md }}
-                  />
-                </>
-              ) : (
-                <>
-                  <Typography variant="h2" color="text" align="center" style={{ marginBottom: spacing.md }}>
-                    Tu perfil de juego
-                  </Typography>
-                  <Typography variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
-                    Cual es tu nivel?
-                  </Typography>
-                  <Typography variant="caption" color="tertiary" style={{ marginBottom: spacing.md }}>
-                    Esto define tu ELO inicial y luego se ajusta con tus partidos.
-                  </Typography>
-
-                  <View style={styles.grid}>
-                    {CATEGORIES.map((category) => {
-                      const isSelected = form.self_category === category.value;
-                      return (
-                        <TouchableOpacity
-                          key={category.value}
-                          activeOpacity={0.7}
-                          style={[
-                            styles.optionCard,
-                            {
-                              borderColor: isSelected ? colors.primary : colors.border,
-                              backgroundColor: isSelected ? colors.primaryMuted : colors.surfaceHighlight,
-                              borderRadius: radius.md,
-                            },
-                          ]}
-                          onPress={() => update('self_category', category.value)}
-                        >
-                          <Typography style={{ fontSize: 24, marginBottom: 4 }}>{category.emoji}</Typography>
-                          <Typography
-                            variant="bodyBold"
-                            color={isSelected ? 'primary' : 'secondary'}
-                            style={{ fontSize: 13 }}
-                          >
-                            {category.label}
-                          </Typography>
-                          <Typography variant="caption" color="tertiary" style={{ marginTop: 2, fontSize: 11 }}>
-                            {category.elo} ELO
-                          </Typography>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-
-                  <Typography
-                    variant="label"
-                    color="secondary"
-                    style={{ marginTop: spacing.lg, marginBottom: spacing.md }}
                   >
-                    Juegas de?
-                  </Typography>
-
-                  <View style={styles.row}>
-                    {POSITIONS.map((position) => {
-                      const isSelected = form.position === position.value;
-                      return (
-                        <TouchableOpacity
-                          key={position.value}
-                          activeOpacity={0.7}
-                          style={[
-                            styles.posCard,
-                            {
-                              borderColor: isSelected ? colors.primary : colors.border,
-                              backgroundColor: isSelected ? colors.primaryMuted : colors.surfaceHighlight,
-                              borderRadius: radius.md,
-                            },
-                          ]}
-                          onPress={() => update('position', position.value)}
-                        >
-                          <Typography style={{ fontSize: 28, marginBottom: 6 }}>{position.emoji}</Typography>
-                          <Typography variant="bodyBold" color={isSelected ? 'primary' : 'secondary'}>
-                            {position.label}
-                          </Typography>
-                        </TouchableOpacity>
-                      );
-                    })}
+                    <Typography
+                      variant="caption"
+                      style={{ color: isSelected ? colors.accent : '#6A7280' }}
+                    >
+                      {category.elo} ELO
+                    </Typography>
                   </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-                  <Input
-                    label="Paleta que usas (opcional)"
-                    value={form.paddle_brand}
-                    onChangeText={(value) => update('paddle_brand', value)}
-                    placeholder="Ej: Head Alpha"
-                    style={{ marginTop: spacing.lg }}
-                  />
+          <Typography variant="label" style={[styles.sectionLabel, { marginTop: spacing.lg }]}>
+            Tu lado favorito
+          </Typography>
 
-                  <View style={styles.btnRow}>
-                    <Button
-                      title="Atras"
-                      onPress={() => setStep(1)}
-                      variant="outline"
-                      style={{ flex: 1 }}
-                    />
-                    <Button
-                      title="Jugar"
-                      onPress={handleRegister}
-                      loading={loading}
-                      style={{ flex: 2 }}
-                    />
-                  </View>
-                </>
-              )}
-
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={styles.loginBtn}
-                activeOpacity={0.7}
-              >
-                <Typography variant="bodyMedium" color="secondary" align="center">
-                  Ya tenes cuenta?{' '}
-                  <Typography variant="bodyBold" color="primary">
-                    Inicia sesion
+          <View style={styles.row}>
+            {POSITIONS.map((position) => {
+              const isSelected = form.position === position.value;
+              return (
+                <TouchableOpacity
+                  key={position.value}
+                  activeOpacity={0.82}
+                  style={[
+                    styles.posCard,
+                    {
+                      borderColor: isSelected ? '#111214' : '#ECEEF3',
+                      backgroundColor: isSelected ? '#111214' : '#FBFBFD',
+                      borderRadius: radius.lg,
+                    },
+                  ]}
+                  onPress={() => update('position', position.value)}
+                >
+                  <Typography style={styles.optionEmoji}>{position.emoji}</Typography>
+                  <Typography variant="bodyBold" style={{ color: isSelected ? '#FFFFFF' : '#17181B' }}>
+                    {position.label}
                   </Typography>
-                </Typography>
-              </TouchableOpacity>
-            </Card>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Input
+            label="Paleta que usas (opcional)"
+            value={form.paddle_brand}
+            onChangeText={(value) => update('paddle_brand', value)}
+            placeholder="Ej: Head Alpha"
+            labelStyle={styles.fieldLabel}
+            containerStyle={[styles.fieldContainer, { marginTop: spacing.lg }]}
+            inputStyle={styles.fieldInput}
+            placeholderTextColor="#B8BEC8"
+          />
+
+          <View style={styles.btnRow}>
+            <Button
+              title="Atras"
+              onPress={() => setStep(1)}
+              variant="outline"
+              style={styles.secondaryBtn}
+              textStyle={styles.secondaryBtnText}
+            />
+            <Button
+              title="Crear cuenta"
+              onPress={handleRegister}
+              loading={loading}
+              textColor="#FFFFFF"
+              loadingColor="#FFFFFF"
+              style={styles.primaryWideBtn}
+              textStyle={styles.primaryBtnText}
+            />
+          </View>
+        </>
+      )}
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  flex: { flex: 1 },
-  scrollContent: { flexGrow: 1 },
-  header: { alignItems: 'center', marginBottom: 16, paddingTop: 12 },
-  headerCopy: { color: 'rgba(255, 255, 255, 0.76)' },
-  card: { marginTop: 16 },
-  steps: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  step: { width: 32, height: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  heroContent: {
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  stepChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  heroCopy: {
+    maxWidth: 250,
+    marginTop: 14,
+    color: 'rgba(255,255,255,0.72)',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  steps: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  step: {
+    width: 38,
+    height: 5,
+  },
+  fieldLabel: {
+    marginLeft: 2,
+    marginBottom: 8,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0,
+    textTransform: 'none',
+    color: '#3F4652',
+  },
+  fieldContainer: {
+    height: 56,
+    borderWidth: 1,
+    borderColor: '#EEF0F4',
+    borderRadius: 16,
+    backgroundColor: '#FBFBFD',
+    shadowColor: '#111827',
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
+  },
+  fieldInput: {
+    fontSize: 15,
+    color: '#16181D',
+  },
+  primaryBtn: {
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: '#111214',
+  },
+  primaryWideBtn: {
+    flex: 2,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: '#111214',
+  },
+  primaryBtnText: {
+    fontSize: 15,
+    letterSpacing: 0.1,
+    color: '#FFFFFF',
+  },
+  secondaryBtn: {
+    flex: 1,
+    height: 54,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#D9DEE7',
+  },
+  secondaryBtnText: {
+    color: '#17181B',
+    fontSize: 14,
+  },
+  sectionLabel: {
+    marginBottom: 6,
+    color: '#3F4652',
+    letterSpacing: 0.3,
+  },
+  sectionCopy: {
+    marginBottom: 14,
+    color: '#7D8696',
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 2,
+  },
   optionCard: {
     width: '48%',
-    padding: 14,
-    borderWidth: 1.5,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    shadowColor: '#111827',
+    shadowOpacity: 0.03,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
   },
-  row: { flexDirection: 'row', gap: 8 },
+  optionEmoji: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  eloPill: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   posCard: {
     flex: 1,
     padding: 16,
-    borderWidth: 1.5,
+    borderWidth: 1,
     alignItems: 'center',
+    shadowColor: '#111827',
+    shadowOpacity: 0.03,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
   },
-  btnRow: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  loginBtn: { alignItems: 'center', marginTop: 24 },
+  btnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  loginBtn: {
+    alignItems: 'center',
+    marginTop: 24,
+  },
 });

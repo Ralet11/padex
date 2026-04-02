@@ -16,6 +16,8 @@ export const Button = ({
     rightIcon,
     style,
     textStyle,
+    textColor,
+    loadingColor,
 }) => {
     const { colors, spacing, radius } = useTheme();
 
@@ -91,17 +93,18 @@ export const Button = ({
     const getSizeStyles = () => {
         switch (size) {
             case 'sm':
-                return { paddingVertical: spacing.sm, paddingHorizontal: spacing.md };
+                return { minHeight: 40, paddingHorizontal: spacing.md, paddingVertical: 0 };
             case 'lg':
-                return { paddingVertical: spacing.lg, paddingHorizontal: spacing.xxl };
+                return { minHeight: 54, paddingHorizontal: spacing.xxl, paddingVertical: 0 };
             case 'md':
             default:
-                return { paddingVertical: spacing.md, paddingHorizontal: spacing.xl };
+                return { minHeight: 48, paddingHorizontal: spacing.xl, paddingVertical: 0 };
         }
     };
 
     const getTextColor = () => {
         if (disabled) return colors.text.tertiary;
+        if (textColor) return textColor;
         switch (variant) {
             case 'solid':
             case 'danger':
@@ -133,7 +136,7 @@ export const Button = ({
             ]}
         >
             {loading ? (
-                <ActivityIndicator color={getTextColor()} size="small" />
+                <ActivityIndicator color={loadingColor || getTextColor()} size="small" />
             ) : (
                 <>
                     {leftIcon}

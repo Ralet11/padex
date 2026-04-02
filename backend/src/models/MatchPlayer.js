@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../database');
+const { RESULT_OUTCOMES } = require('../constants/domainEvents');
 
 const MatchPlayer = sequelize.define('MatchPlayer', {
     id: {
@@ -13,7 +14,19 @@ const MatchPlayer = sequelize.define('MatchPlayer', {
     result: {
         type: DataTypes.STRING, // 'win', 'loss', 'draw'
     },
+    competitive_result: {
+        type: DataTypes.ENUM(...Object.values(RESULT_OUTCOMES)),
+        allowNull: true,
+    },
     stars_earned: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+    },
+    rating_delta: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+    },
+    progression_points_delta: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
     },

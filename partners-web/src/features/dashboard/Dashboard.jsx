@@ -1,9 +1,25 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2, Calendar, ChevronDown, CircleDot, Clock3, DollarSign, Image as ImageIcon, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Settings, Trash2, Users } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { api, resolveAssetUrl } from '../../lib/runtime';
+import {
+  CLUB_SERVICE_OPTIONS,
+  COURT_ENCLOSURE_OPTIONS,
+  COURT_SURFACE_OPTIONS,
+  SERVICE_LABELS,
+  SURFACE_LABELS,
+  ENCLOSURE_LABELS,
+} from './venueCatalog';
 
 const COURT_TYPES = ['Cristal', 'Muro', 'Panoramica'];
+const EMPTY_COURT_FORM = {
+  id: null,
+  name: '',
+  type: COURT_TYPES[0],
+  surface: '',
+  enclosure: '',
+  image: '',
+};
 const WEEKDAYS = [
   { value: 1, short: 'L', label: 'Lunes' },
   { value: 2, short: 'M', label: 'Martes' },
@@ -13,6 +29,16 @@ const WEEKDAYS = [
   { value: 6, short: 'S', label: 'Sabado' },
   { value: 0, short: 'D', label: 'Domingo' },
 ];
+
+const SLOT_STATE = {
+  AVAILABLE: 'available',
+  RELEASED: 'released',
+  RESERVED: 'reserved',
+  BLOCKED: 'blocked',
+  COMPLETED: 'completed',
+  HELD: 'held',
+  OCCUPIED: 'occupied',
+};
 
 function todayStr() {
   const date = new Date();
@@ -78,9 +104,46 @@ function formatDateLabel(dateStr, long = false) {
 }
 
 function getSlotStatus(slot) {
-  if (slot.is_available) return { key: 'free', label: 'Libre', detail: 'Disponible' };
-  if (slot.booked_externally) return { key: 'busy', label: 'Ocupado', detail: slot.occupant_name || 'Reserva manual' };
-  return { key: 'busy', label: 'Reservado', detail: 'Tomado por la app' };
+  const slotState = getOperationalSlotState(slot);
+  if (slotState === SLOT_STATE.AVAILABLE || slotState === SLOT_STATE.RELEASED) return { key: 'free', label: 'Disponible', detail: 'Listo para tomar' };
+  if (slotState === SLOT_STATE.BLOCKED || slot.booked_externally) return { key: 'busy', label: 'Bloqueado', detail: slot.occupant_name || 'Reserva manual' };
+  if (slotState === SLOT_STATE.COMPLETED) return { key: 'busy', label: 'Cerrado', detail: 'Turno ya jugado' };
+  return { key: 'busy', label: 'Tomado por PADEX', detail: 'Comprometido por la app' };
+}
+
+function getOperationalSlotState(slot) {
+  if (slot?.state) return slot.state;
+  if (slot?.booked_externally || slot?.occupant_name || slot?.occupant_phone) return SLOT_STATE.BLOCKED;
+  return slot?.is_available === false ? SLOT_STATE.RESERVED : SLOT_STATE.AVAILABLE;
+}
+
+function isOperationallyAvailable(slot) {
+  const slotState = getOperationalSlotState(slot);
+  return slotState === SLOT_STATE.AVAILABLE || slotState === SLOT_STATE.RELEASED;
+}
+
+function createVenueFormState(venue) {
+  return {
+    name: venue?.name || '',
+    address: venue?.address || '',
+    phone: venue?.phone || '',
+    image: venue?.image || '',
+    price_per_slot: venue?.price_per_slot ?? '',
+    services: Array.isArray(venue?.services) ? venue.services : [],
+  };
+}
+
+function createCourtFormState(court = null) {
+  if (!court) return { ...EMPTY_COURT_FORM };
+
+  return {
+    id: court.id,
+    name: court.name || '',
+    type: court.type || COURT_TYPES[0],
+    surface: court.surface || '',
+    enclosure: court.enclosure || '',
+    image: court.image || '',
+  };
 }
 
 export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
@@ -106,14 +169,12 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
   const [selectedAgendaCourt, setSelectedAgendaCourt] = useState(null);
   const [returnToCourtAgenda, setReturnToCourtAgenda] = useState(false);
   const [selectedClosureCourt, setSelectedClosureCourt] = useState(null);
-  const [newCourtName, setNewCourtName] = useState('');
-  const [newCourtType, setNewCourtType] = useState(COURT_TYPES[0]);
+  const [courtForm, setCourtForm] = useState(EMPTY_COURT_FORM);
   const [bookingForm, setBookingForm] = useState({ occupant_name: '', occupant_phone: '', notes: '' });
   const [dayOverrideForm, setDayOverrideForm] = useState({ windows: [createWindow('08:00', '15:00')] });
   const [courtClosureForm, setCourtClosureForm] = useState({ start_date: todayStr(), end_date: todayStr(), reason: '' });
   const [courtClosures, setCourtClosures] = useState([]);
-  const [venueForm, setVenueForm] = useState({ name: '', address: '', phone: '', image: '', price_per_slot: '' });
-  const [venueImageFile, setVenueImageFile] = useState(null);
+  const [venueForm, setVenueForm] = useState(() => createVenueFormState());
   const [planningForm, setPlanningForm] = useState({
     from: todayStr(),
     to: `${new Date().getFullYear()}-12-31`,
@@ -128,7 +189,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
   const [isSavingVenue, setIsSavingVenue] = useState(false);
   const [isUploadingVenueImage, setIsUploadingVenueImage] = useState(false);
 
-  function applyAvailabilityConfig(data) {
+  const applyAvailabilityConfig = useCallback((data) => {
     if (!data?.rules?.length) return;
     setPlanningForm((prev) => ({
       ...prev,
@@ -143,27 +204,29 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
           : [],
       })),
     }));
-  }
+  }, []);
 
   useEffect(() => {
     const incomingCourts = Array.isArray(venue?.Courts) ? venue.Courts : [];
     setCourts(incomingCourts);
     setPlanningForm((prev) => ({ ...prev, court_ids: incomingCourts.map((court) => court.id) }));
-    setVenueForm({
-      name: venue?.name || '',
-      address: venue?.address || '',
-      phone: venue?.phone || '',
-      image: venue?.image || '',
-      price_per_slot: venue?.price_per_slot ?? '',
-    });
-    setVenueImageFile(null);
+    setVenueForm(createVenueFormState(venue));
   }, [venue]);
+
+  const fetchAvailabilityRules = useCallback(async () => {
+    try {
+      const response = await api.get('/partners/availability-rules');
+      applyAvailabilityConfig(response.data);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [applyAvailabilityConfig]);
 
   useEffect(() => {
     if (venue?.id) {
       fetchAvailabilityRules();
     }
-  }, [venue?.id]);
+  }, [fetchAvailabilityRules, venue?.id]);
 
   useEffect(() => {
     if (!selectedAgendaDate) {
@@ -194,34 +257,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     }
   }, [activeTab, courts.length, selectedAgendaDate, slots, viewRange.from, viewRange.to]);
 
-  useEffect(() => {
-    if (['planning', 'overview', 'courts'].includes(activeTab)) fetchSlots();
-  }, [activeTab, venue?.id, viewRange.from, viewRange.to]);
-
-  async function fetchSlots() {
-    setIsLoadingSlots(true);
-    try {
-      const response = await api.get('/partners/slots', { params: { from: viewRange.from, to: viewRange.to } });
-      setSlots(response.data.slots || []);
-      await Promise.all([fetchExceptions(), fetchClosures()]);
-    } catch (err) {
-      console.error(err);
-      setSlots([]);
-    } finally {
-      setIsLoadingSlots(false);
-    }
-  }
-
-  async function fetchAvailabilityRules() {
-    try {
-      const response = await api.get('/partners/availability-rules');
-      applyAvailabilityConfig(response.data);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function fetchExceptions() {
+  const fetchExceptions = useCallback(async () => {
     try {
       const response = await api.get('/partners/availability-exceptions', { params: { from: viewRange.from, to: viewRange.to } });
       setExceptions(response.data.exceptions || []);
@@ -229,9 +265,9 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
       console.error(err);
       setExceptions([]);
     }
-  }
+  }, [viewRange.from, viewRange.to]);
 
-  async function fetchClosures() {
+  const fetchClosures = useCallback(async () => {
     try {
       const response = await api.get('/partners/court-closures', {
         params: {
@@ -244,7 +280,25 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
       console.error(err);
       setCourtClosures([]);
     }
-  }
+  }, [planningForm.to, viewRange.from, viewRange.to]);
+
+  const fetchSlots = useCallback(async () => {
+    setIsLoadingSlots(true);
+    try {
+      const response = await api.get('/partners/slots', { params: { from: viewRange.from, to: viewRange.to } });
+      setSlots(response.data.slots || []);
+      await Promise.all([fetchExceptions(), fetchClosures()]);
+    } catch (err) {
+      console.error(err);
+      setSlots([]);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  }, [fetchClosures, fetchExceptions, viewRange.from, viewRange.to]);
+
+  useEffect(() => {
+    if (['planning', 'overview', 'courts'].includes(activeTab)) fetchSlots();
+  }, [activeTab, fetchSlots]);
 
   const slotsByCourt = useMemo(() => courts.map((court) => ({
     ...court,
@@ -255,8 +309,8 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     const daySlots = slots.filter((slot) => slot.date === selectedAgendaDate);
     return {
       date: selectedAgendaDate,
-      free: daySlots.filter((slot) => slot.is_available).length,
-      occupied: daySlots.filter((slot) => !slot.is_available).length,
+      free: daySlots.filter((slot) => isOperationallyAvailable(slot)).length,
+      occupied: daySlots.filter((slot) => !isOperationallyAvailable(slot)).length,
       total: daySlots.length,
     };
   }, [selectedAgendaDate, slots]);
@@ -288,14 +342,14 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     const allSlots = slots
       .filter((slot) => slot.date === selectedAgendaDate && slot.Court?.id === court.id)
       .sort((a, b) => a.time.localeCompare(b.time));
-    const visibleSlots = allSlots.filter((slot) => agendaFilter === 'all' ? true : agendaFilter === 'free' ? slot.is_available : !slot.is_available);
+    const visibleSlots = allSlots.filter((slot) => agendaFilter === 'all' ? true : agendaFilter === 'free' ? isOperationallyAvailable(slot) : !isOperationallyAvailable(slot));
     const activeClosure = (closuresByCourt[court.id] || []).find((closure) => closure.start_date <= selectedAgendaDate && closure.end_date >= selectedAgendaDate) || null;
     return {
       ...court,
       allSlots,
       slots: visibleSlots,
-      freeCount: allSlots.filter((slot) => slot.is_available).length,
-      occupiedCount: allSlots.filter((slot) => !slot.is_available).length,
+      freeCount: allSlots.filter((slot) => isOperationallyAvailable(slot)).length,
+      occupiedCount: allSlots.filter((slot) => !isOperationallyAvailable(slot)).length,
       activeClosure,
     };
   }), [courts, selectedAgendaDate, slots, agendaFilter, closuresByCourt]);
@@ -304,10 +358,10 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     const today = todayStr();
     const todaySlots = slots.filter((slot) => slot.date === today);
     const configuredCourts = slotsByCourt.filter((court) => court.slots.length > 0).length;
-    const nextAvailable = [...slots].filter((slot) => slot.is_available).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+    const nextAvailable = [...slots].filter((slot) => isOperationallyAvailable(slot)).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
     return {
-      freeToday: todaySlots.filter((slot) => slot.is_available).length,
-      occupiedToday: todaySlots.filter((slot) => !slot.is_available).length,
+      freeToday: todaySlots.filter((slot) => isOperationallyAvailable(slot)).length,
+      occupiedToday: todaySlots.filter((slot) => !isOperationallyAvailable(slot)).length,
       configuredCourts,
       unconfiguredCourts: Math.max(0, courts.length - configuredCourts),
       nextAvailable,
@@ -503,16 +557,44 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
     }
   }
 
-  async function handleAddCourt() {
-    const name = newCourtName.trim();
+  function toggleVenueService(service) {
+    setVenueForm((prev) => ({
+      ...prev,
+      services: prev.services.includes(service)
+        ? prev.services.filter((item) => item !== service)
+        : [...prev.services, service],
+    }));
+  }
+
+  function openCourtEditor(court = null) {
+    setCourtForm(createCourtFormState(court));
+    setShowAddCourtModal(true);
+  }
+
+  function closeCourtEditor() {
+    setShowAddCourtModal(false);
+    setCourtForm({ ...EMPTY_COURT_FORM });
+  }
+
+  async function handleSaveCourt() {
+    const name = courtForm.name.trim();
     if (!name) return;
     setIsSavingCourt(true);
     try {
-      await api.post('/partners/courts', { name, type: newCourtType });
+      const payload = {
+        name,
+        type: courtForm.type,
+        image: courtForm.image.trim(),
+        surface: courtForm.surface || null,
+        enclosure: courtForm.enclosure || null,
+      };
+      if (courtForm.id) {
+        await api.put(`/partners/courts/${courtForm.id}`, payload);
+      } else {
+        await api.post('/partners/courts', payload);
+      }
       if (onVenueRefresh) await onVenueRefresh();
-      setShowAddCourtModal(false);
-      setNewCourtName('');
-      setNewCourtType(COURT_TYPES[0]);
+      closeCourtEditor();
     } catch (err) {
       alert(`Error al guardar la cancha: ${err.response?.data?.error || err.message}`);
     } finally {
@@ -530,6 +612,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
         phone: venueForm.phone,
         image: venueForm.image,
         price_per_slot: venueForm.price_per_slot === '' ? 0 : Number(venueForm.price_per_slot),
+        services: venueForm.services,
       });
       if (onVenueRefresh) await onVenueRefresh();
     } catch (err) {
@@ -549,7 +632,6 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setVenueForm((prev) => ({ ...prev, image: response.data.image || prev.image }));
-      setVenueImageFile(file);
       if (onVenueRefresh) await onVenueRefresh();
     } catch (err) {
       alert(`Error subiendo imagen: ${err.response?.data?.error || err.message}`);
@@ -619,12 +701,12 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
               <div>
                 <p className="eyebrow">Resumen</p>
                 <h2>Lectura operativa de la sede</h2>
-                <p className="subtle">Lo importante primero: turnos libres, ocupados y canchas que todavia no tienen agenda.</p>
+                <p className="subtle">Primero lo importante: capacidad disponible, compromisos operativos y canchas que todavia no tienen agenda.</p>
               </div>
             </section>
             <section className="stats">
-              <article className="stat glass"><span>Libres hoy</span><strong>{summary.freeToday}</strong><small>Turnos disponibles hoy</small></article>
-              <article className="stat glass"><span>Ocupados hoy</span><strong>{summary.occupiedToday}</strong><small>Reservas y bloqueos del dia</small></article>
+              <article className="stat glass"><span>Disponibles hoy</span><strong>{summary.freeToday}</strong><small>Capacidad operativa abierta</small></article>
+              <article className="stat glass"><span>Comprometidos hoy</span><strong>{summary.occupiedToday}</strong><small>Reservas, bloqueos y cierres del dia</small></article>
               <article className="stat glass"><span>Canchas con agenda</span><strong>{summary.configuredCourts}/{courts.length}</strong><small>{summary.unconfiguredCourts ? `${summary.unconfiguredCourts} sin configurar` : 'Todas activas'}</small></article>
               <article className="stat glass accent"><span>Proximo libre</span><strong>{summary.nextAvailable ? summary.nextAvailable.time : '--:--'}</strong><small>{summary.nextAvailable ? `${summary.nextAvailable.Court?.name} - ${formatDateLabel(summary.nextAvailable.date)}` : 'Sin turnos disponibles'}</small></article>
             </section>
@@ -642,14 +724,14 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                     <p className="subtle">
                       {isSelectedDateHydrating
                         ? 'Actualizando disponibilidad del dia...'
-                        : `${selectedDaySummary.total} turnos - ${selectedDaySummary.free} libres - ${selectedDaySummary.occupied} ocupados`}
+                        : `${selectedDaySummary.total} turnos - ${selectedDaySummary.free} disponibles - ${selectedDaySummary.occupied} comprometidos`}
                     </p>
                   </div>
                   <div className="agendaHeaderRight">
                     <div className="todayBadges">
                       <span className="miniBadge neutral">{summary.freeToday + summary.occupiedToday} hoy</span>
-                      <span className="miniBadge free">{summary.freeToday} libres</span>
-                      <span className="miniBadge busy">{summary.occupiedToday} ocupados</span>
+                      <span className="miniBadge free">{summary.freeToday} disponibles</span>
+                      <span className="miniBadge busy">{summary.occupiedToday} comprometidos</span>
                     </div>
                     <div className="agendaActions">
                       <button className="btn-secondary compact" onClick={fetchSlots} disabled={isLoadingSlots}>{isLoadingSlots ? 'Actualizando...' : 'Actualizar'}</button>
@@ -691,8 +773,8 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                   <div className="toolbarGroup">
                     <div className="segmented">
                       <button className={agendaFilter === 'all' ? 'active' : ''} onClick={() => setAgendaFilter('all')}>Todos</button>
-                      <button className={agendaFilter === 'free' ? 'active' : ''} onClick={() => setAgendaFilter('free')}>Libres</button>
-                      <button className={agendaFilter === 'occupied' ? 'active' : ''} onClick={() => setAgendaFilter('occupied')}>Ocupados</button>
+                      <button className={agendaFilter === 'free' ? 'active' : ''} onClick={() => setAgendaFilter('free')}>Disponibles</button>
+                      <button className={agendaFilter === 'occupied' ? 'active' : ''} onClick={() => setAgendaFilter('occupied')}>Comprometidos</button>
                     </div>
                     {selectedDayOverride && <span className="miniBadge dayOverride">Dia ajustado manualmente</span>}
                   </div>
@@ -711,8 +793,8 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                         </div>
                         <div className="laneStats">
                           <span className="miniBadge neutral">{court.allSlots.length} turnos</span>
-                          <span className="miniBadge free">{court.freeCount} libres</span>
-                          <span className="miniBadge busy">{court.occupiedCount} ocupados</span>
+                          <span className="miniBadge free">{court.freeCount} disponibles</span>
+                          <span className="miniBadge busy">{court.occupiedCount} comprometidos</span>
                           {court.activeClosure && <span className="miniBadge closed">Clausurada</span>}
                           <span className="collapseIcon"><ChevronDown size={16} /></span>
                         </div>
@@ -732,13 +814,13 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
               <div>
                 <p className="eyebrow">Canchas</p>
                 <h2>Infraestructura</h2>
-                <p className="subtle">Cada cancha necesita nombre claro y tipo para que la agenda sea facil de entender.</p>
+                <p className="subtle">Cada cancha puede definir tipo, superficie y cerramiento para que la agenda y los filtros reflejen la oferta real del club.</p>
               </div>
-              <button className="btn-primary-sm" onClick={() => setShowAddCourtModal(true)}><Plus size={16} />Agregar cancha</button>
+              <button className="btn-primary-sm" onClick={() => openCourtEditor()}><Plus size={16} />Agregar cancha</button>
             </section>
             <section className="courtCards">
               {slotsByCourt.map((court) => {
-                const freeCount = court.slots.filter((slot) => slot.is_available).length;
+                const freeCount = court.slots.filter((slot) => isOperationallyAvailable(slot)).length;
                 const currentClosure = (closuresByCourt[court.id] || []).find((closure) => closure.end_date >= todayStr()) || null;
                 return (
                   <article key={court.id} className="courtCard glass">
@@ -746,13 +828,20 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                     <div className="cardBody">
                       <h3>{court.name}</h3>
                       <p>Tipo: {court.type || 'Sin tipo'} - turnos de 1.5 hs</p>
+                      <div className="meta courtMeta">
+                        <span>{court.surface ? (SURFACE_LABELS[court.surface] || court.surface) : 'Superficie pendiente'}</span>
+                        <span>{court.enclosure ? (ENCLOSURE_LABELS[court.enclosure] || court.enclosure) : 'Cerramiento pendiente'}</span>
+                      </div>
                       <div className="meta">
                         <span>{court.slots.length} turnos</span>
-                        <span>{freeCount} libres</span>
+                        <span>{freeCount} disponibles</span>
                         {currentClosure ? <span className="metaAlert">Clausurada hasta {formatDateLabel(currentClosure.end_date)}</span> : <span className="metaOk">Operativa</span>}
                       </div>
                       {currentClosure && <p className="closureInfo">Desde {formatDateLabel(currentClosure.start_date)} hasta {formatDateLabel(currentClosure.end_date)}{currentClosure.reason ? ` · ${currentClosure.reason}` : ''}</p>}
                       <div className="cardActions">
+                        <button type="button" className="btn-secondary compact" onClick={() => openCourtEditor(court)}>
+                          Editar cancha
+                        </button>
                         <button type="button" className="btn-outline compact" onClick={() => openCourtClosure(court)}>
                           {currentClosure ? 'Editar clausura' : 'Clausurar cancha'}
                         </button>
@@ -763,7 +852,6 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                         )}
                       </div>
                     </div>
-                    <button className="icon-btn danger" onClick={() => setCourts(courts.filter((c) => c.id !== court.id))}><Trash2 size={18} /></button>
                   </article>
                 );
               })}
@@ -777,7 +865,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
               <div>
                 <p className="eyebrow">Sede</p>
                 <h2>Datos del club</h2>
-                <p className="subtle">Aqui el manager puede mantener nombre, direccion, telefono, imagen y precio general de los turnos de la sede.</p>
+                <p className="subtle">Aqui el manager puede mantener nombre, direccion, telefono, imagen, precio general y servicios visibles en la app.</p>
               </div>
             </section>
             <section className="venueEditor glass">
@@ -794,6 +882,15 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                   <p><MapPin size={16} />{venueForm.address || 'Sin direccion cargada'}</p>
                   <p><Phone size={16} />{venueForm.phone || 'Sin telefono cargado'}</p>
                   <p><DollarSign size={16} />${Number(venueForm.price_per_slot || 0).toLocaleString('es-AR')} por turno</p>
+                  <div className="servicePreviewWrap">
+                    {(venueForm.services || []).length > 0 ? (
+                      venueForm.services.map((service) => (
+                        <span key={service} className="servicePreviewChip">{SERVICE_LABELS[service] || service}</span>
+                      ))
+                    ) : (
+                      <span className="servicePreviewEmpty">Sin servicios configurados</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="venueFormGrid">
@@ -802,15 +899,24 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                 <label className="wideField"><span>Direccion</span><input type="text" value={venueForm.address} onChange={(e) => setVenueForm((prev) => ({ ...prev, address: e.target.value }))} placeholder="Ej: Santa Fe 435" /></label>
                 <label><span>Precio general por turno</span><input type="number" min="0" step="100" value={venueForm.price_per_slot} onChange={(e) => setVenueForm((prev) => ({ ...prev, price_per_slot: e.target.value }))} placeholder="Ej: 12000" /></label>
                 <label className="wideField"><span>Imagen actual</span><input type="text" value={venueForm.image} onChange={(e) => setVenueForm((prev) => ({ ...prev, image: e.target.value }))} placeholder="/uploads/..." /></label>
+                <div className="wideField serviceSection">
+                  <span>Servicios del club</span>
+                  <div className="optionPillWrap">
+                    {CLUB_SERVICE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`optionPill ${venueForm.services.includes(option.value) ? 'active' : ''}`}
+                        onClick={() => toggleVenueService(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="venueActions">
-                <button className="btn-secondary" onClick={() => setVenueForm({
-                  name: venue?.name || '',
-                  address: venue?.address || '',
-                  phone: venue?.phone || '',
-                  image: venue?.image || '',
-                  price_per_slot: venue?.price_per_slot ?? '',
-                })} disabled={isSavingVenue}>Restablecer</button>
+                <button className="btn-secondary" onClick={() => setVenueForm(createVenueFormState(venue))} disabled={isSavingVenue}>Restablecer</button>
                 <button className="btn-primary-sm" onClick={handleSaveVenue} disabled={isSavingVenue}>{isSavingVenue ? 'Guardando...' : 'Guardar sede'}</button>
               </div>
             </section>
@@ -847,13 +953,16 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
         {showAddCourtModal && (
           <div className="modal-overlay">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="modal glass">
-              <h3>Nueva cancha</h3>
-              <p className="subtle">Define un nombre de referencia y el material principal.</p>
-              <label><span>Nombre de referencia</span><input type="text" value={newCourtName} onChange={(e) => setNewCourtName(e.target.value)} placeholder="Ej: Cancha Central, Vidrio 1, Norte" autoFocus /></label>
-              <label><span>Material / tipo</span><select value={newCourtType} onChange={(e) => setNewCourtType(e.target.value)}>{COURT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+              <h3>{courtForm.id ? 'Editar cancha' : 'Nueva cancha'}</h3>
+              <p className="subtle">Completa nombre, tipo, superficie y cerramiento para que la agenda y los filtros queden alineados.</p>
+              <label><span>Nombre de referencia</span><input type="text" value={courtForm.name} onChange={(e) => setCourtForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Ej: Cancha Central, Vidrio 1, Norte" autoFocus /></label>
+              <label><span>Material / tipo</span><select value={courtForm.type} onChange={(e) => setCourtForm((prev) => ({ ...prev, type: e.target.value }))}>{COURT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+              <label><span>Superficie</span><select value={courtForm.surface} onChange={(e) => setCourtForm((prev) => ({ ...prev, surface: e.target.value }))}><option value="">Sin definir</option>{COURT_SURFACE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+              <label><span>Cerramiento</span><select value={courtForm.enclosure} onChange={(e) => setCourtForm((prev) => ({ ...prev, enclosure: e.target.value }))}><option value="">Sin definir</option>{COURT_ENCLOSURE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+              <label><span>Imagen</span><input type="text" value={courtForm.image} onChange={(e) => setCourtForm((prev) => ({ ...prev, image: e.target.value }))} placeholder="/uploads/... o URL" /></label>
               <div className="modalActions">
-                <button className="btn-secondary" onClick={() => setShowAddCourtModal(false)} disabled={isSavingCourt}>Cancelar</button>
-                <button className="btn-primary-sm" onClick={handleAddCourt} disabled={!newCourtName.trim() || isSavingCourt}>{isSavingCourt ? 'Guardando...' : 'Guardar cancha'}</button>
+                <button className="btn-secondary" onClick={closeCourtEditor} disabled={isSavingCourt}>Cancelar</button>
+                <button className="btn-primary-sm" onClick={handleSaveCourt} disabled={!courtForm.name.trim() || isSavingCourt}>{isSavingCourt ? 'Guardando...' : (courtForm.id ? 'Guardar cambios' : 'Guardar cancha')}</button>
               </div>
             </motion.div>
           </div>
@@ -903,7 +1012,7 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                 <div>
                   <p className="eyebrow">Agenda de cancha</p>
                   <h3>{selectedAgendaCourt.name} · {selectedAgendaDate ? formatDateLabel(selectedAgendaDate, true) : ''}</h3>
-                  <p className="subtle">{selectedAgendaCourt.type || 'Sin tipo'} · {selectedAgendaCourt.allSlots.length} turnos · {selectedAgendaCourt.freeCount} libres · {selectedAgendaCourt.occupiedCount} ocupados</p>
+                  <p className="subtle">{selectedAgendaCourt.type || 'Sin tipo'} · {selectedAgendaCourt.allSlots.length} turnos · {selectedAgendaCourt.freeCount} disponibles · {selectedAgendaCourt.occupiedCount} comprometidos</p>
                 </div>
                 <button className="btn-secondary compact closeModalBtn" onClick={() => setShowCourtAgendaModal(false)}>Cerrar</button>
               </div>
@@ -920,13 +1029,13 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
                     {selectedAgendaCourt.slots.map((slot) => {
                       const status = getSlotStatus(slot);
                       return (
-                        <motion.button whileHover={{ scale: slot.is_available ? 1.02 : 1 }} whileTap={{ scale: slot.is_available ? 0.98 : 1 }} key={slot.id} type="button" className={`slotCard ${status.key}`} onClick={() => slot.is_available && openBooking(slot)}>
+                        <motion.button whileHover={{ scale: isOperationallyAvailable(slot) ? 1.02 : 1 }} whileTap={{ scale: isOperationallyAvailable(slot) ? 0.98 : 1 }} key={slot.id} type="button" className={`slotCard ${status.key}`} onClick={() => isOperationallyAvailable(slot) && openBooking(slot)}>
                           <div className="slotTop">
                             <span className={`statusPill ${status.key}`}>{status.label}</span>
                             <span className="slotTime"><Clock3 size={13} />{slot.time}</span>
                           </div>
                           <strong>{status.detail}</strong>
-                          <small>{slot.is_available ? 'Click para reservar manualmente' : slot.occupant_phone || 'Turno ya tomado'}</small>
+                          <small>{isOperationallyAvailable(slot) ? 'Click para bloquear o reservar manualmente' : slot.occupant_phone || 'Turno comprometido'}</small>
                         </motion.button>
                       );
                     })}
@@ -1104,8 +1213,8 @@ export default function Dashboard({ venue, onLogout, onVenueRefresh }) {
           .twoCols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}.builder label,.modal label{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}.builder label span,.modal label span{font-size:.78rem;font-weight:800;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.08em}.builder input,.builder select,.modal input,.modal select,.modal textarea{width:100%;background:var(--secondary);border:1px solid var(--border);padding:13px 16px;border-radius:14px;color:#fff;font-size:.95rem}.builder input:focus,.builder select:focus,.modal input:focus,.modal select:focus,.modal textarea:focus{outline:none;border-color:var(--primary);background:rgba(192,255,0,.02)}.modal textarea{min-height:90px;font-family:inherit}
           .chipWrap{display:flex;flex-wrap:wrap;gap:10px}.chip{border-radius:999px;border:1px solid var(--border);background:var(--secondary);color:var(--muted-foreground);min-width:42px;height:42px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}.chip.active{background:rgba(192,255,0,.14);border-color:rgba(192,255,0,.3);color:var(--primary)}
           .ruleList{display:flex;flex-direction:column;gap:16px;margin-top:6px}.ruleCard{padding:18px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}.ruleHeader{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}.ruleHeader strong{display:block;font-size:1rem;margin-bottom:4px}.ruleHeader small{color:var(--muted-foreground);line-height:1.45}.windowList{display:flex;flex-direction:column;gap:10px;margin:10px 0 18px}.windowRow{display:grid;grid-template-columns:auto 1fr auto 1fr auto;gap:10px;align-items:center;padding:12px;border-radius:14px;background:rgba(255,255,255,.03)}.windowRow strong{font-size:.85rem}.windowRow input{margin:0}.windowRow span{color:var(--muted-foreground);font-weight:700}.addWindow,.addRule{justify-content:center}.note{margin:22px 0;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.03);color:var(--muted-foreground);line-height:1.55}.wide{width:100%}
-          .courtCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px}.courtCard{padding:24px;border-radius:22px;display:flex;align-items:flex-start;gap:18px;position:relative;transition:transform .2s}.courtCard:hover{transform:translateY(-4px);border-color:var(--primary)}.iconBox{width:56px;height:56px;background:rgba(192,255,0,.1);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--primary)}.cardBody h3{font-size:1.15rem;margin-bottom:6px}.cardBody p{font-size:.88rem;color:var(--muted-foreground)}.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.meta span{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.04);color:var(--muted-foreground);font-size:.76rem;font-weight:700}.metaAlert{background:rgba(59,130,246,.16)!important;color:#bfdbfe!important}.metaOk{background:rgba(192,255,0,.1)!important;color:var(--primary)!important}.closureInfo{margin-top:12px;line-height:1.5}.cardActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.compact{padding:10px 14px;font-size:.86rem}.courtCard .icon-btn.danger{position:absolute;top:12px;right:12px;opacity:0;transition:opacity .2s}.courtCard:hover .icon-btn.danger{opacity:1}
-          .venueEditor{padding:28px;border-radius:28px;display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:28px;align-items:start}.venuePreview{display:flex;flex-direction:column;gap:18px;position:sticky;top:24px}.venueImageFrame{width:100%;aspect-ratio:16/10;border-radius:24px;overflow:hidden;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}.venueImageFrame img{width:100%;height:100%;object-fit:cover;display:block}.venueImagePlaceholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted-foreground);background:radial-gradient(circle at top,rgba(192,255,0,.08),transparent 34%),rgba(255,255,255,.02)}.uploadButton{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:#f5f7fb;font-weight:700;cursor:pointer;transition:background .18s ease,border-color .18s ease}.uploadButton:hover{background:rgba(255,255,255,.06);border-color:rgba(192,255,0,.22)}.uploadButton input{display:none}.venuePreviewText h3{font-size:1.4rem;letter-spacing:-.03em;margin-bottom:10px}.venuePreviewText p{display:flex;align-items:center;gap:10px;color:var(--muted-foreground);margin:8px 0}.venueFormGrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}.venueFormGrid label{display:flex;flex-direction:column;gap:8px}.venueFormGrid label span{font-size:.78rem;font-weight:800;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.08em}.venueFormGrid input{width:100%;background:var(--secondary);border:1px solid var(--border);padding:13px 16px;border-radius:14px;color:#fff;font-size:.96rem;transition:border-color .18s ease,background .18s ease}.venueFormGrid input:focus{outline:none;border-color:var(--primary);background:rgba(192,255,0,.02)}.wideField{grid-column:1/-1}.venueActions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;margin-top:22px;padding-top:22px;border-top:1px solid rgba(255,255,255,.06)}
+          .courtCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px}.courtCard{padding:24px;border-radius:22px;display:flex;align-items:flex-start;gap:18px;position:relative;transition:transform .2s}.courtCard:hover{transform:translateY(-4px);border-color:var(--primary)}.iconBox{width:56px;height:56px;background:rgba(192,255,0,.1);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--primary)}.cardBody h3{font-size:1.15rem;margin-bottom:6px}.cardBody p{font-size:.88rem;color:var(--muted-foreground)}.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.meta span{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.04);color:var(--muted-foreground);font-size:.76rem;font-weight:700}.courtMeta{margin-top:10px}.metaAlert{background:rgba(59,130,246,.16)!important;color:#bfdbfe!important}.metaOk{background:rgba(192,255,0,.1)!important;color:var(--primary)!important}.closureInfo{margin-top:12px;line-height:1.5}.cardActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.compact{padding:10px 14px;font-size:.86rem}
+          .venueEditor{padding:28px;border-radius:28px;display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:28px;align-items:start}.venuePreview{display:flex;flex-direction:column;gap:18px;position:sticky;top:24px}.venueImageFrame{width:100%;aspect-ratio:16/10;border-radius:24px;overflow:hidden;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}.venueImageFrame img{width:100%;height:100%;object-fit:cover;display:block}.venueImagePlaceholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted-foreground);background:radial-gradient(circle at top,rgba(192,255,0,.08),transparent 34%),rgba(255,255,255,.02)}.uploadButton{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:#f5f7fb;font-weight:700;cursor:pointer;transition:background .18s ease,border-color .18s ease}.uploadButton:hover{background:rgba(255,255,255,.06);border-color:rgba(192,255,0,.22)}.uploadButton input{display:none}.venuePreviewText h3{font-size:1.4rem;letter-spacing:-.03em;margin-bottom:10px}.venuePreviewText p{display:flex;align-items:center;gap:10px;color:var(--muted-foreground);margin:8px 0}.servicePreviewWrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.servicePreviewChip,.servicePreviewEmpty{display:inline-flex;align-items:center;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.04);font-size:.78rem;font-weight:700}.servicePreviewChip{color:#f5f7fb}.servicePreviewEmpty{color:var(--muted-foreground)}.venueFormGrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}.venueFormGrid label,.serviceSection{display:flex;flex-direction:column;gap:8px}.venueFormGrid label span,.serviceSection span{font-size:.78rem;font-weight:800;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.08em}.venueFormGrid input,.venueFormGrid select{width:100%;background:var(--secondary);border:1px solid var(--border);padding:13px 16px;border-radius:14px;color:#fff;font-size:.96rem;transition:border-color .18s ease,background .18s ease}.venueFormGrid input:focus,.venueFormGrid select:focus{outline:none;border-color:var(--primary);background:rgba(192,255,0,.02)}.optionPillWrap{display:flex;flex-wrap:wrap;gap:10px}.optionPill{padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);color:var(--muted-foreground);font-weight:700;cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease}.optionPill.active{background:rgba(192,255,0,.12);border-color:rgba(192,255,0,.26);color:var(--primary)}.wideField{grid-column:1/-1}.venueActions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;margin-top:22px;padding-top:22px;border-top:1px solid rgba(255,255,255,.06)}
           .admin-table{width:100%;border-collapse:collapse}.admin-table th{text-align:left;padding:16px 24px;background:rgba(255,255,255,.02);color:var(--muted-foreground);font-size:.8rem;text-transform:uppercase}.admin-table td{padding:16px 24px;border-top:1px solid var(--border);font-size:.95rem}
           .dangerGhost{background:rgba(239,68,68,.12);color:#fca5a5}.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px}.modal{width:430px;padding:32px;border-radius:20px;background:#121316;border:1px solid rgba(255,255,255,.08);box-shadow:0 28px 64px rgba(0,0,0,.46)}.availabilityModal{width:min(780px,100%);max-height:90vh;overflow:auto;background:#111214}.courtAgendaModal{width:min(980px,100%);display:flex;flex-direction:column;max-height:88vh;overflow:hidden;background:#0f1013}.courtAgendaBody{overflow:auto;padding-right:8px;margin-right:-8px}.courtAgendaBody::-webkit-scrollbar,.availabilityModal::-webkit-scrollbar{width:12px}.courtAgendaBody::-webkit-scrollbar-track,.availabilityModal::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:999px}.courtAgendaBody::-webkit-scrollbar-thumb,.availabilityModal::-webkit-scrollbar-thumb{background:rgba(192,255,0,.24);border:3px solid rgba(17,18,20,.9);border-radius:999px}.closeModalBtn{min-width:116px}.closeFooterBtn{min-width:140px}.bookingContext{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 22px}.contextPill{display:inline-flex;align-items:center;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.05);color:#eef2ff;font-size:.88rem;font-weight:700;line-height:1}.contextPill.strong{background:rgba(192,255,0,.14);color:var(--primary)}.modalSlotRow{margin-top:6px}.modalHeader{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.courtAgendaModal .modalHeader{padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.06)}.courtAgendaModal .modalActions{padding-top:16px;margin-top:18px;border-top:1px solid rgba(255,255,255,.06)}
           @media (max-width:1200px){.stats{grid-template-columns:1fr 1fr}.hero{flex-direction:column;align-items:flex-start}}
