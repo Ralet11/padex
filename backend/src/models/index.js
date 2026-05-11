@@ -10,6 +10,7 @@ const AvailabilityException = require('./AvailabilityException');
 const CourtClosure = require('./CourtClosure');
 const Match = require('./Match');
 const MatchPlayer = require('./MatchPlayer');
+const MatchPayment = require('./MatchPayment');
 const League = require('./League');
 const Season = require('./Season');
 const CompetitiveStanding = require('./CompetitiveStanding');
@@ -65,6 +66,15 @@ Match.belongsTo(Slot, { foreignKey: 'slot_id' });
 // Match <-> User (Players / MatchPlayer join table)
 Match.hasMany(MatchPlayer, { foreignKey: 'match_id', as: 'Players' });
 MatchPlayer.belongsTo(Match, { foreignKey: 'match_id' });
+
+Match.hasMany(MatchPayment, { foreignKey: 'match_id', as: 'Payments' });
+MatchPayment.belongsTo(Match, { foreignKey: 'match_id', as: 'Match' });
+
+Slot.hasMany(MatchPayment, { foreignKey: 'slot_id', as: 'Payments' });
+MatchPayment.belongsTo(Slot, { foreignKey: 'slot_id', as: 'Slot' });
+
+User.hasMany(MatchPayment, { foreignKey: 'user_id', as: 'MatchPayments' });
+MatchPayment.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
 
 User.hasMany(MatchPlayer, { foreignKey: 'user_id' });
 MatchPlayer.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
@@ -165,6 +175,7 @@ module.exports = {
     CourtClosure,
     Match,
     MatchPlayer,
+    MatchPayment,
     League,
     Season,
     CompetitiveStanding,

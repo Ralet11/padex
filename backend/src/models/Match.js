@@ -46,6 +46,11 @@ const Match = sequelize.define('Match', {
         allowNull: false,
         defaultValue: 7,
     },
+    payment_required: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
     result_recorded_at: {
         type: DataTypes.DATE,
         allowNull: true,

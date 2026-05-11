@@ -19,6 +19,13 @@ const { getActiveSeasonForLeague } = require('../services/competitive/seasons');
 const { MATCH_STATES } = require('../constants/matchStates');
 const { SLOT_STATES } = require('../constants/slotStates');
 const { getCanonicalSideForIndex } = require('../services/competitive/teams');
+const { buildMatchPricingSnapshot } = require('../services/matchPricing');
+const {
+  MATCH_PAYMENT_CONFIG,
+  createCreatorPaymentIntent,
+  createJoinPaymentIntent,
+  refundLatestApprovedPaymentForUser,
+} = require('../services/payments/matchPayments');
 
 const router = express.Router();
 
@@ -115,10 +122,12 @@ async function getMatchWithDetails(matchId, options = {}) {
 
 function formatMatchResponse(match) {
   const matchData = match.toJSON();
+  const playerCount = (matchData.Players || []).length;
 
   return {
     ...matchData,
     state: matchData.state,
+    payment_required: Boolean(matchData.payment_required),
     slot_state: matchData.Slot?.state || null,
     date: matchData.Slot?.date,
     time: matchData.Slot?.time,
@@ -148,6 +157,11 @@ function formatMatchResponse(match) {
           recorded_at: matchData.CompetitiveResult.recorded_at,
         }
       : null,
+    pricing: buildMatchPricingSnapshot({
+      totalCourtPrice: matchData.Slot?.price,
+      maxPlayers: matchData.max_players,
+      currentPlayers: playerCount,
+    }),
     players: (matchData.Players || []).map((player) => ({
       id: player.User?.id,
       name: player.User?.name,
@@ -260,13 +274,19 @@ router.get('/', auth, async (req, res) => {
         slot_state: matchData.Slot.state,
         duration: matchData.Slot.duration,
         price: matchData.Slot.price,
+        payment_required: Boolean(matchData.payment_required),
         court_id: matchData.Slot.Court.id,
         court_name: matchData.Slot.Court.name,
         court_address: matchData.Slot.Court.address,
         creator_name: matchData.Creator.name,
         creator_category: matchData.Creator.category_tier,
         creator_avatar: matchData.Creator.avatar,
-        player_count: matchData.Players.length
+        player_count: matchData.Players.length,
+        pricing: buildMatchPricingSnapshot({
+          totalCourtPrice: matchData.Slot?.price,
+          maxPlayers: matchData.max_players,
+          currentPlayers: matchData.Players.length,
+        }),
       };
     });
 
@@ -320,9 +340,15 @@ router.get('/my', auth, async (req, res) => {
         slot_state: matchData.Slot?.state,
         duration: matchData.Slot?.duration,
         price: matchData.Slot?.price,
+        payment_required: Boolean(matchData.payment_required),
         court_name: matchData.Slot?.Court?.name,
         court_address: matchData.Slot?.Court?.address,
-        player_count: matchData.Players.length
+        player_count: matchData.Players.length,
+        pricing: buildMatchPricingSnapshot({
+          totalCourtPrice: matchData.Slot?.price,
+          maxPlayers: matchData.max_players,
+          currentPlayers: matchData.Players.length,
+        }),
       };
     });
 
@@ -330,6 +356,46 @@ router.get('/my', auth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error fetching my matches' });
+  }
+});
+
+// POST /api/matches/create-payment-intent - iniciar cobro del creador
+router.post('/create-payment-intent', auth, async (req, res) => {
+  try {
+    const result = await createCreatorPaymentIntent({
+      requester: req.user,
+      payload: req.body || {},
+    });
+    const fullMatch = await getMatchWithDetails(result.match.id);
+
+    await emitSlotAvailabilityUpdate(fullMatch.slot_id, 'creator_payment_pending');
+
+    res.status(201).json({
+      payment: result.payment,
+      match: formatMatchResponse(fullMatch),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 500).json({ error: err.publicMessage || err.message || 'Error creando el intento de pago' });
+  }
+});
+
+// POST /api/matches/:id/join-payment-intent - iniciar cobro para sumarse
+router.post('/:id/join-payment-intent', auth, async (req, res) => {
+  try {
+    const result = await createJoinPaymentIntent({
+      requester: req.user,
+      matchId: req.params.id,
+    });
+    const fullMatch = await getMatchWithDetails(result.match.id);
+
+    res.status(201).json({
+      payment: result.payment,
+      match: formatMatchResponse(fullMatch),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 500).json({ error: err.publicMessage || err.message || 'Error creando el intento de pago' });
   }
 });
 
@@ -349,6 +415,13 @@ router.get('/:id', auth, async (req, res) => {
 // POST /api/matches - crear partido
 router.post('/', auth, async (req, res) => {
   try {
+    if (MATCH_PAYMENT_CONFIG.enabled) {
+      return res.status(409).json({
+        error: 'El flujo de pagos esta habilitado. Usa /api/matches/create-payment-intent.',
+        code: 'PAYMENT_INTENT_REQUIRED',
+      });
+    }
+
     const { slot_id, venue_id, date, time, title, description, min_players = 3, max_players = 4, open_category, min_category_tier, max_category_tier } = req.body;
 
     let resolvedSlotId = slot_id;
@@ -452,6 +525,13 @@ router.post('/', auth, async (req, res) => {
 // POST /api/matches/:id/join - unirse a partido
 router.post('/:id/join', auth, async (req, res) => {
   try {
+    if (MATCH_PAYMENT_CONFIG.enabled) {
+      return res.status(409).json({
+        error: 'El flujo de pagos esta habilitado. Usa /api/matches/:id/join-payment-intent.',
+        code: 'PAYMENT_INTENT_REQUIRED',
+      });
+    }
+
     const match = await getMatchWithDetails(req.params.id);
 
     if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
@@ -527,6 +607,9 @@ router.delete('/:id/leave', auth, async (req, res) => {
     if (match.state === MATCH_STATES.COMPLETED) return res.status(400).json({ error: 'El partido ya finalizó' });
 
     await MatchPlayer.destroy({ where: { match_id: req.params.id, user_id: req.user.id } });
+    if (match.payment_required) {
+      await refundLatestApprovedPaymentForUser(match.id, req.user.id, 'user_left_match');
+    }
 
     const remaining = await MatchPlayer.count({ where: { match_id: req.params.id } });
 
@@ -534,13 +617,23 @@ router.delete('/:id/leave', auth, async (req, res) => {
       await updateMatchLifecycle(match, MATCH_STATES.CANCELLED);
       if (await canReopenSlot(match.slot_id)) {
         const slot = await Slot.findByPk(match.slot_id);
-        await releaseSlotIfManagedByApp(slot);
+        if (match.payment_required && slot?.state === SLOT_STATES.HELD) {
+          await updateSlotLifecycle(slot, SLOT_STATES.AVAILABLE);
+        } else if (match.payment_required && slot?.state === SLOT_STATES.RESERVED) {
+          await updateSlotLifecycle(slot, SLOT_STATES.RELEASED);
+        } else {
+          await releaseSlotIfManagedByApp(slot);
+        }
       }
     } else if (match.state === MATCH_STATES.RESERVED) {
       await updateMatchLifecycle(match, MATCH_STATES.OPEN);
       if (await canReopenSlot(match.slot_id)) {
         const slot = await Slot.findByPk(match.slot_id);
-        await releaseSlotIfManagedByApp(slot);
+        if (match.payment_required) {
+          await updateSlotLifecycle(slot, SLOT_STATES.HELD);
+        } else {
+          await releaseSlotIfManagedByApp(slot);
+        }
       }
     }
 

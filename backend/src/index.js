@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken');
 const { sequelize, User, Connection, Message } = require('./models');
 const seedDatabase = require('./seed');
 const SyncWorker = require('./services/SyncWorker');
+const MatchPaymentsWorker = require('./services/MatchPaymentsWorker');
 const { setIO, getVenueRoom, getVenueDateRoom } = require('./services/realtime');
 
 const authRoutes = require('./routes/auth');
@@ -22,6 +23,7 @@ const messagesRoutes = require('./routes/messages');
 const ratingsRoutes = require('./routes/ratings');
 const leaderboardRoutes = require('./routes/leaderboard');
 const partnersRoutes = require('./routes/partners');
+const paymentsRoutes = require('./routes/payments');
 
 const app = express();
 const server = http.createServer(app);
@@ -82,6 +84,7 @@ app.use('/api/messages', messagesRoutes);
 app.use('/api/ratings', ratingsRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/partners', partnersRoutes);
+app.use('/api/payments', paymentsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date(), request_id: req.requestId });
@@ -209,6 +212,7 @@ sequelize.authenticate()
     
     // Initialize background workers
     SyncWorker.init();
+    MatchPaymentsWorker.init();
   })
   .catch(err => console.error('[startup] ❌ Error syncing models:', err));
 

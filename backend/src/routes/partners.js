@@ -20,6 +20,7 @@ const {
     normalizeCourtSurface,
     normalizeCourtEnclosure,
 } = require('../constants/venueFilters');
+const { SLOT_STATES } = require('../constants/slotStates');
 
 const router = express.Router();
 
@@ -667,6 +668,7 @@ router.put('/slots/:id/occupy', auth, async (req, res) => {
         if (activeMatch) return res.status(400).json({ error: 'El turno ya esta siendo usado por la app' });
 
         await slot.update({
+            state: SLOT_STATES.BLOCKED,
             is_available: false,
             booked_externally: true,
             occupant_name,
@@ -680,6 +682,51 @@ router.put('/slots/:id/occupy', auth, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error ocupando turno' });
+    }
+});
+
+router.delete('/slots/:id/occupy', auth, async (req, res) => {
+    try {
+        const venue = await getManagedVenue(req.user.id);
+        if (!venue) return res.status(403).json({ error: 'No autorizado o sede no encontrada' });
+
+        const slot = await Slot.findByPk(req.params.id, {
+            include: [{
+                model: Court,
+                attributes: ['id', 'venue_id']
+            }]
+        });
+
+        if (!slot || !slot.Court || Number(slot.Court.venue_id) !== Number(venue.id)) {
+            return res.status(404).json({ error: 'Turno no encontrado' });
+        }
+
+        if (!slot.booked_externally && !slot.occupant_name && !slot.occupant_phone) {
+            return res.status(400).json({ error: 'Solo puedes liberar turnos cargados manualmente' });
+        }
+
+        const activeMatch = await Match.findOne({
+            where: {
+                slot_id: slot.id,
+                status: { [Op.in]: ['open', 'reserved'] }
+            }
+        });
+        if (activeMatch) return res.status(400).json({ error: 'El turno esta siendo usado por la app' });
+
+        await slot.update({
+            state: SLOT_STATES.AVAILABLE,
+            is_available: true,
+            booked_externally: false,
+            occupant_name: null,
+            occupant_phone: null,
+            notes: null
+        });
+
+        emitVenueAvailabilityUpdate({ venueId: venue.id, date: slot.date, reason: 'slot_released_externally' });
+        res.json({ slot });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error liberando turno' });
     }
 });
 
