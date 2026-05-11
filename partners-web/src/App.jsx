@@ -1,11 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Onboarding from './features/onboarding/Onboarding';
-import Dashboard from './features/dashboard/Dashboard';
 import Landing from './features/auth/Landing';
 import HomeLanding from './features/home/HomeLanding';
 import AdminDashboard from './features/admin/AdminDashboard';
-import { api, ROUTER_MODE, setAuthToken } from './lib/runtime';
+import HoyPage from './features/operations/routes/HoyPage';
+import AgendaPage from './features/operations/routes/AgendaPage';
+import ExcepcionesPage from './features/operations/routes/ExcepcionesPage';
+import CanchasPage from './features/operations/routes/CanchasPage';
+import SedePage from './features/operations/routes/SedePage';
+import { ROUTER_MODE, setAuthToken } from './lib/runtime';
+import { useOperationsVenue } from './features/operations/hooks/useOperationsVenue';
 import './index.css';
 
 const RouterComponent = ROUTER_MODE === 'browser' ? BrowserRouter : HashRouter;
@@ -15,32 +20,16 @@ function App() {
     const saved = localStorage.getItem('padex_user');
     return saved ? JSON.parse(saved) : null;
   });
-  const [venue, setVenue] = useState(null);
-  const [loadingVenue, setLoadingVenue] = useState(true);
-
-  const loadVenue = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoadingVenue(true);
-    try {
-      const response = await api.get('/partners/venue');
-      setVenue(response.data.venue);
-    } catch (err) {
-      console.error('No venue found or error', err);
-      setVenue(null);
-    } finally {
-      if (!silent) setLoadingVenue(false);
-    }
-  }, []);
+  const {
+    venue,
+    venueError,
+    isLoadingVenue: loadingVenue,
+    refreshVenue,
+  } = useOperationsVenue({ user });
 
   useEffect(() => {
     setAuthToken(user?.token);
-
-    if (user && user.role === 'partner') {
-      loadVenue();
-    } else {
-      setVenue(null);
-      setLoadingVenue(false);
-    }
-  }, [user, loadVenue]);
+  }, [user]);
 
   const handleLogin = (authData) => {
     const { user: userData, token } = authData;
@@ -51,13 +40,13 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
-    setVenue(null);
     localStorage.removeItem('padex_user');
     setAuthToken(null);
   };
 
   const handleOnboardingComplete = (venueData) => {
-    setVenue(venueData);
+    void venueData;
+    refreshVenue();
   };
 
   // Helper to determine where to redirect a logged-in user
@@ -67,11 +56,24 @@ function App() {
     let target = '/socios';
     if (user.role === 'admin') target = '/admin';
     else if (user.role === 'partner') {
-      target = venue ? '/dashboard' : '/onboarding';
+      target = venue ? '/operations/hoy' : '/onboarding';
     }
 
     if (target === currentPath) return null;
     return target;
+  };
+
+  const renderPartnerOperationsRoute = (Page) => {
+    if (user?.role !== 'partner') return <Navigate to="/socios" replace />;
+    if (loadingVenue) return <div>Cargando...</div>;
+    if (!venue) return <Navigate to="/onboarding" replace />;
+
+    return React.createElement(Page, {
+      venue,
+      onLogout: handleLogout,
+      onRefresh: () => refreshVenue({ silent: true }),
+      error: venueError,
+    });
   };
 
   return (
@@ -114,13 +116,22 @@ function App() {
           element={user?.role === 'partner' && !venue ? <Onboarding onComplete={handleOnboardingComplete} /> : <Navigate to="/socios" replace />} 
         />
         
-        <Route 
-          path="/dashboard" 
+        <Route path="/operations" element={user?.role === 'partner' ? <Navigate to="/operations/hoy" replace /> : <Navigate to="/socios" replace />} />
+        <Route path="/operations/hoy" element={renderPartnerOperationsRoute(HoyPage)} />
+        <Route path="/operations/agenda" element={renderPartnerOperationsRoute(AgendaPage)} />
+        <Route path="/operations/excepciones" element={renderPartnerOperationsRoute(ExcepcionesPage)} />
+        <Route path="/operations/canchas" element={renderPartnerOperationsRoute(CanchasPage)} />
+        <Route path="/operations/sede" element={renderPartnerOperationsRoute(SedePage)} />
+
+        <Route
+          path="/dashboard"
           element={
-            loadingVenue && user?.role === 'partner' ? <div>Cargando...</div> : (
-              user?.role === 'partner' && venue ? <Dashboard venue={venue} onLogout={handleLogout} onVenueRefresh={() => loadVenue({ silent: true })} /> : <Navigate to="/socios" replace />
-            )
-          } 
+            loadingVenue && user?.role === 'partner'
+              ? <div>Cargando...</div>
+              : user?.role === 'partner'
+              ? <Navigate to={venue ? '/operations/hoy' : '/onboarding'} replace />
+              : <Navigate to="/socios" replace />
+          }
         />
 
         <Route path="/" element={<HomeLanding />} />
