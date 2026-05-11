@@ -14,6 +14,8 @@ import MatchCard from '../../components/MatchCard';
 import { RANK_CONFIG, getCategoryProgress, getRankByTier } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
 import { getCompetitiveLosses, getCompetitiveTier, getCompetitiveWins, getProgressionPoints, getReputationScore } from '../../utils/domain';
+import { isProfileInstagramV1Enabled, isProfileSocialV2Enabled } from '../../config/featureFlags';
+import ProfileInstagramV1Screen from './ProfileInstagramV1Screen';
 
 function RankProgressBar({ stars, tier }) {
   const { colors } = useTheme();
@@ -34,7 +36,7 @@ function RankProgressBar({ stars, tier }) {
   );
 }
 
-export default function ProfileScreen({ navigation }) {
+function LegacyProfileScreen({ navigation }) {
   const { user, logout } = useAuth();
   const { colors } = useTheme();
   const [myMatches, setMyMatches] = useState([]);
@@ -206,6 +208,18 @@ export default function ProfileScreen({ navigation }) {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function ProfileScreen(props) {
+  if (isProfileSocialV2Enabled) {
+    return <ProfileInstagramV1Screen {...props} variant="v2" />;
+  }
+
+  if (isProfileInstagramV1Enabled) {
+    return <ProfileInstagramV1Screen {...props} variant="v1" />;
+  }
+
+  return <LegacyProfileScreen {...props} />;
 }
 
 const styles = StyleSheet.create({

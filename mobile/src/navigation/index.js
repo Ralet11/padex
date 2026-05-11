@@ -19,6 +19,7 @@ import PlayerProfileScreen from '../screens/social/PlayerProfileScreen';
 import MessagesScreen from '../screens/messages/MessagesScreen';
 import ChatScreen from '../screens/messages/ChatScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import ProfileHistoryScreen from '../screens/profile/ProfileHistoryScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import LeaderboardScreen from '../screens/leaderboard/LeaderboardScreen';
 
@@ -93,6 +94,7 @@ function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ProfileHistory" component={ProfileHistoryScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Editar perfil' }} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ headerShown: false }} />
       <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} options={{ title: 'Perfil' }} />

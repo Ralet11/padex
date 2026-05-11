@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Typography } from '../ui/Typography';
 
 export default function BrandLockup({
@@ -23,11 +23,13 @@ export default function BrandLockup({
 
       <View style={[styles.brandRow, isLarge && styles.brandRowLarge]}>
         <View style={[styles.markShell, isLarge ? styles.markShellLarge : styles.markShellMedium]}>
-          <Image
-            source={require('../../../assets/ball-mark.png')}
-            style={[styles.mark, isLarge ? styles.markLarge : styles.markMedium]}
-            resizeMode="contain"
-          />
+          <Typography
+            variant="label"
+            align="center"
+            style={[styles.markLetter, isLarge ? styles.markLetterLarge : styles.markLetterMedium]}
+          >
+            P
+          </Typography>
         </View>
 
         <Typography
@@ -107,18 +109,17 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
   },
-  mark: {
-    tintColor: undefined,
+  markLetter: {
+    color: '#B7DA49',
+    letterSpacing: 0.8,
   },
-  markLarge: {
-    width: 34,
-    height: 34,
-    transform: [{ translateY: 4 }],
+  markLetterLarge: {
+    fontSize: 30,
+    lineHeight: 32,
   },
-  markMedium: {
-    width: 28,
-    height: 28,
-    transform: [{ translateY: 3.25 }],
+  markLetterMedium: {
+    fontSize: 24,
+    lineHeight: 26,
   },
   wordmark: {
     marginTop: 7,

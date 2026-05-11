@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { Button } from '../../components/ui/Button';
@@ -60,16 +60,10 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           <View style={styles.heroLogoTile}>
-            <Image
-              source={require('../../../assets/ball-mark.png')}
-              resizeMode="contain"
-              style={styles.heroLogo}
-            />
+            <Typography variant="h2" align="center" style={[styles.heroLogoText, { color: colors.accent }]}>
+              P
+            </Typography>
           </View>
-
-          <Typography variant="caption" align="center" style={styles.heroCopy}>
-            
-          </Typography>
         </View>
       }
       footer={
@@ -167,14 +161,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
-  heroLogo: {
-    width: 42,
-    height: 42,
-  },
-  heroCopy: {
-    maxWidth: 244,
-    color: 'rgba(255,255,255,0.72)',
-    lineHeight: 18,
+  heroLogoText: {
+    fontSize: 32,
+    lineHeight: 34,
+    letterSpacing: -0.8,
   },
   fieldLabel: {
     marginLeft: 2,

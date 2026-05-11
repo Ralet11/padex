@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { Typography } from './Typography';
 import { Eye, EyeOff } from 'lucide-react-native';
+import { useAuthKeyboardContext } from '../auth/AuthKeyboardContext';
 
 export const Input = ({
     label,
@@ -20,11 +21,14 @@ export const Input = ({
     ...props
 }) => {
     const { colors, spacing, radius } = useTheme();
+    const authKeyboardContext = useAuthKeyboardContext();
     const [isFocused, setIsFocused] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const inputRef = useRef(null);
 
     const handleFocus = (e) => {
         setIsFocused(true);
+        authKeyboardContext?.scrollFocusedInputIntoView?.(inputRef.current);
         if (onFocus) onFocus(e);
     };
 
@@ -60,6 +64,7 @@ export const Input = ({
             >
                 {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
                 <TextInput
+                    ref={inputRef}
                     style={[
                         styles.input,
                         { color: colors.text.primary },

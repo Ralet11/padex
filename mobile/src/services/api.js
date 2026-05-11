@@ -112,12 +112,20 @@ export const courtsAPI = {
 
 export const matchesAPI = {
   list: (params) => api.get('/matches', { params }),
-  my: () => api.get('/matches/my'),
+  my: (params = {}) => api.get('/matches/my', { params }),
   get: (id) => api.get(`/matches/${id}`),
   create: (data) => api.post('/matches', data),
+  createPaymentIntent: (data) => api.post('/matches/create-payment-intent', data),
   join: (id) => api.post(`/matches/${id}/join`),
+  joinPaymentIntent: (id) => api.post(`/matches/${id}/join-payment-intent`),
   leave: (id) => api.delete(`/matches/${id}/leave`),
   complete: (id, data = {}) => api.put(`/matches/${id}/complete`, data),
+};
+
+export const paymentsAPI = {
+  get: (id) => api.get(`/payments/${id}`),
+  mockApprove: (id) => api.post(`/payments/${id}/mock-approve`),
+  mockReject: (id) => api.post(`/payments/${id}/mock-reject`),
 };
 
 export const socialAPI = {
