@@ -61,6 +61,16 @@ function resolveAuthoritativeTier(user = {}) {
   return Number(user.competitive_context?.tier || user.competitive_tier || user.category_tier || 0);
 }
 
+function resolveEffectiveSlotPrice(slot = {}) {
+  const slotPrice = Number(slot?.price || 0);
+  if (slotPrice > 0) return slotPrice;
+
+  const venuePrice = Number(slot?.Court?.Venue?.price_per_slot || 0);
+  if (venuePrice > 0) return venuePrice;
+
+  return slotPrice;
+}
+
 function parseCategoryTierFilter(value) {
   if (value === undefined || value === null) return null;
 
@@ -95,7 +105,7 @@ async function getMatchWithDetails(matchId, options = {}) {
         model: Slot,
         include: [{
           model: Court,
-          include: [{ model: Venue, attributes: ['id', 'name', 'address', 'image'] }]
+          include: [{ model: Venue, attributes: ['id', 'name', 'address', 'image', 'price_per_slot'] }]
         }]
       },
       {
@@ -123,6 +133,7 @@ async function getMatchWithDetails(matchId, options = {}) {
 function formatMatchResponse(match) {
   const matchData = match.toJSON();
   const playerCount = (matchData.Players || []).length;
+  const effectivePrice = resolveEffectiveSlotPrice(matchData.Slot);
 
   return {
     ...matchData,
@@ -132,7 +143,7 @@ function formatMatchResponse(match) {
     date: matchData.Slot?.date,
     time: matchData.Slot?.time,
     duration: matchData.Slot?.duration,
-    price: matchData.Slot?.price,
+    price: effectivePrice,
     open_category: matchData.open_category,
     min_category_tier: matchData.min_category_tier,
     max_category_tier: matchData.max_category_tier,
@@ -158,7 +169,7 @@ function formatMatchResponse(match) {
         }
       : null,
     pricing: buildMatchPricingSnapshot({
-      totalCourtPrice: matchData.Slot?.price,
+      totalCourtPrice: effectivePrice,
       maxPlayers: matchData.max_players,
       currentPlayers: playerCount,
     }),
@@ -237,7 +248,10 @@ router.get('/', auth, async (req, res) => {
         {
           model: Slot,
           where: slotWhereRules,
-          include: [{ model: Court }]
+          include: [{
+            model: Court,
+            include: [{ model: Venue, attributes: ['id', 'price_per_slot'] }],
+          }]
         },
         {
           model: User,
@@ -257,6 +271,7 @@ router.get('/', auth, async (req, res) => {
 
     const formattedMatches = matches.map(m => {
       const matchData = m.toJSON();
+      const effectivePrice = resolveEffectiveSlotPrice(matchData.Slot);
       return {
         id: matchData.id,
         title: matchData.title,
@@ -273,7 +288,7 @@ router.get('/', auth, async (req, res) => {
         time: matchData.Slot.time,
         slot_state: matchData.Slot.state,
         duration: matchData.Slot.duration,
-        price: matchData.Slot.price,
+        price: effectivePrice,
         payment_required: Boolean(matchData.payment_required),
         court_id: matchData.Slot.Court.id,
         court_name: matchData.Slot.Court.name,
@@ -283,7 +298,7 @@ router.get('/', auth, async (req, res) => {
         creator_avatar: matchData.Creator.avatar,
         player_count: matchData.Players.length,
         pricing: buildMatchPricingSnapshot({
-          totalCourtPrice: matchData.Slot?.price,
+          totalCourtPrice: effectivePrice,
           maxPlayers: matchData.max_players,
           currentPlayers: matchData.Players.length,
         }),
@@ -315,7 +330,13 @@ router.get('/my', auth, async (req, res) => {
         ]
       },
       include: [
-        { model: Slot, include: [{ model: Court }] },
+        {
+          model: Slot,
+          include: [{
+            model: Court,
+            include: [{ model: Venue, attributes: ['id', 'price_per_slot'] }],
+          }],
+        },
         { model: MatchPlayer, as: 'Players' } // Needed for player_count calculation
       ],
       order: [
@@ -326,6 +347,7 @@ router.get('/my', auth, async (req, res) => {
 
     const formattedMatches = matches.map(m => {
       const matchData = m.toJSON();
+      const effectivePrice = resolveEffectiveSlotPrice(matchData.Slot);
       return {
         id: matchData.id,
         title: matchData.title,
@@ -339,13 +361,13 @@ router.get('/my', auth, async (req, res) => {
         time: matchData.Slot?.time,
         slot_state: matchData.Slot?.state,
         duration: matchData.Slot?.duration,
-        price: matchData.Slot?.price,
+        price: effectivePrice,
         payment_required: Boolean(matchData.payment_required),
         court_name: matchData.Slot?.Court?.name,
         court_address: matchData.Slot?.Court?.address,
         player_count: matchData.Players.length,
         pricing: buildMatchPricingSnapshot({
-          totalCourtPrice: matchData.Slot?.price,
+          totalCourtPrice: effectivePrice,
           maxPlayers: matchData.max_players,
           currentPlayers: matchData.Players.length,
         }),

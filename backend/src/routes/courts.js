@@ -37,6 +37,16 @@ async function getFilteredCourtIds(venueId, { surface = null, enclosure = null }
   return courts.map((court) => court.id);
 }
 
+function resolveVenueSlotPrice(slotPrice, venuePrice) {
+  const normalizedSlotPrice = Number(slotPrice || 0);
+  if (normalizedSlotPrice > 0) return normalizedSlotPrice;
+
+  const normalizedVenuePrice = Number(venuePrice || 0);
+  if (normalizedVenuePrice > 0) return normalizedVenuePrice;
+
+  return normalizedSlotPrice;
+}
+
 async function getVenueDateSummaries(venueId, from, to, courtIds = null) {
   if (Array.isArray(courtIds) && courtIds.length === 0) return [];
 
@@ -231,6 +241,7 @@ router.get('/venues/:id/slots', auth, async (req, res) => {
     res.json({
       slots: slots.map((slot) => ({
         ...slot,
+        price: resolveVenueSlotPrice(slot.price, venue.price_per_slot),
         available_slots: Number(slot.available_slots || 0),
         has_match: Number(slot.has_match || 0),
         total_slots: summary.total_slots,

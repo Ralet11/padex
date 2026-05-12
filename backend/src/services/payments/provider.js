@@ -22,6 +22,12 @@ function buildBackUrl(status, payment) {
   return `${base}?status=${encodeURIComponent(status)}&local_payment_id=${encodeURIComponent(payment.id)}`;
 }
 
+function normalizeUnitPrice(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100) / 100;
+}
+
 async function mercadoPagoRequest(path, { method = 'GET', body = null, idempotencyKey = null } = {}) {
   const accessToken = String(process.env.MP_ACCESS_TOKEN || '').trim();
   if (!accessToken) {
@@ -73,6 +79,15 @@ async function createMercadoPagoPreference({ payment, match, slot, payer }) {
   const expirationDate = payment.expires_at instanceof Date
     ? payment.expires_at.toISOString()
     : null;
+  const unitPrice = normalizeUnitPrice(payment.total_amount);
+
+  if (!(unitPrice > 0)) {
+    const error = new Error('La sede no tiene un precio valido para iniciar el cobro.');
+    error.status = 400;
+    error.publicMessage = error.message;
+    error.code = 'INVALID_UNIT_PRICE';
+    throw error;
+  }
 
   const body = {
     items: [
@@ -82,7 +97,7 @@ async function createMercadoPagoPreference({ payment, match, slot, payer }) {
         description: `Partido ${match.id} - ${slot.date} ${slot.time}`,
         quantity: 1,
         currency_id: payment.currency,
-        unit_price: Number(payment.total_amount),
+        unit_price: unitPrice,
       },
     ],
     payer: payer?.email
