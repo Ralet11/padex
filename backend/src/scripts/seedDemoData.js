@@ -170,7 +170,8 @@ function buildCourtImage(venueKey, courtName) {
   return `https://placehold.co/1200x900/101010/A7CE29?text=${encodeURIComponent(`${venueKey} ${courtName}`)}`;
 }
 
-async function ensureManager(managerTemplate) {
+async function ensureManager(managerTemplate, options = {}) {
+  const transaction = options.transaction;
   const [manager] = await User.findOrCreate({
     where: { email: managerTemplate.email },
     defaults: {
@@ -178,32 +179,35 @@ async function ensureManager(managerTemplate) {
       password: DEMO_PASSWORD,
       role: 'partner',
     },
+    transaction,
   });
 
   if (manager.name !== managerTemplate.name || manager.role !== 'partner') {
     await manager.update({
       name: managerTemplate.name,
       role: 'partner',
-    });
+    }, { transaction });
   }
 
   return manager;
 }
 
-async function ensureVenue(venueTemplate) {
-  const manager = await ensureManager(venueTemplate.manager);
+async function ensureVenue(venueTemplate, options = {}) {
+  const transaction = options.transaction;
+  const manager = await ensureManager(venueTemplate.manager, { transaction });
   const [venue] = await Venue.findOrCreate({
     where: { name: venueTemplate.venue.name },
     defaults: {
       ...venueTemplate.venue,
       manager_id: manager.id,
     },
+    transaction,
   });
 
   await venue.update({
     ...venueTemplate.venue,
     manager_id: manager.id,
-  });
+  }, { transaction });
 
   const courts = [];
   for (const courtTemplate of venueTemplate.courts) {
@@ -220,6 +224,7 @@ async function ensureVenue(venueTemplate) {
         surface: courtTemplate.surface,
         enclosure: courtTemplate.enclosure,
       },
+      transaction,
     });
 
     await court.update({
@@ -227,7 +232,7 @@ async function ensureVenue(venueTemplate) {
       image: buildCourtImage(venueTemplate.key, courtTemplate.name),
       surface: courtTemplate.surface,
       enclosure: courtTemplate.enclosure,
-    });
+    }, { transaction });
 
     courts.push(court);
   }
@@ -247,6 +252,7 @@ async function ensureVenue(venueTemplate) {
       is_active: true,
     },
     order: [['id', 'ASC']],
+    transaction,
   });
 
   if (activeRule) {
@@ -257,7 +263,7 @@ async function ensureVenue(venueTemplate) {
       start_date: startDate,
       end_date: endDate,
       is_active: true,
-    });
+    }, { transaction });
   } else {
     await AvailabilityRule.create({
       venue_id: venue.id,
@@ -267,16 +273,17 @@ async function ensureVenue(venueTemplate) {
       start_date: startDate,
       end_date: endDate,
       is_active: true,
-    });
+    }, { transaction });
   }
 
-  await ensureSlotsForRange(venue.id, startDate, dateToStr(addDays(today, 21)));
+  await ensureSlotsForRange(venue.id, startDate, dateToStr(addDays(today, 21)), { transaction });
 
   return { venue, courts };
 }
 
-async function ensureDemoVenues() {
-  const totalVenueCount = await Venue.count();
+async function ensureDemoVenues(options = {}) {
+  const transaction = options.transaction;
+  const totalVenueCount = await Venue.count({ transaction });
   const existingVenueNames = new Set(
     (await Venue.findAll({
       attributes: ['name'],
@@ -285,6 +292,7 @@ async function ensureDemoVenues() {
           [Op.in]: DEMO_VENUE_TEMPLATES.map((item) => item.venue.name),
         },
       },
+      transaction,
     })).map((venue) => venue.name)
   );
 
@@ -303,13 +311,14 @@ async function ensureDemoVenues() {
 
   const ensured = [];
   for (const template of templatesToEnsure) {
-    ensured.push(await ensureVenue(template));
+    ensured.push(await ensureVenue(template, { transaction }));
   }
 
   return ensured;
 }
 
-async function ensureDemoPlayers() {
+async function ensureDemoPlayers(options = {}) {
+  const transaction = options.transaction;
   const playerTemplates = buildPlayerTemplates();
   const players = [];
 
@@ -320,6 +329,7 @@ async function ensureDemoPlayers() {
         ...template,
         password: DEMO_PASSWORD,
       },
+      transaction,
     });
 
     await player.update({
@@ -333,7 +343,7 @@ async function ensureDemoPlayers() {
       category: template.category,
       self_category: template.self_category,
       role: 'player',
-    });
+    }, { transaction });
 
     players.push(player);
   }
@@ -348,6 +358,15 @@ function shuffle(values) {
     [list[i], list[randomIndex]] = [list[randomIndex], list[i]];
   }
   return list;
+}
+
+function resolveTargetOpenMatches(value) {
+  const parsed = Number(value);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  return TARGET_OPEN_MATCHES;
 }
 
 function buildCategoryRuleForMatch(index, creatorTier) {
@@ -391,7 +410,8 @@ function pickEligiblePlayers(players, categoryRule, creatorId) {
   });
 }
 
-async function getCandidateSlots(demoVenueIds) {
+async function getCandidateSlots(demoVenueIds, options = {}) {
+  const transaction = options.transaction;
   if (demoVenueIds.length === 0) return [];
 
   const courts = await Court.findAll({
@@ -401,6 +421,7 @@ async function getCandidateSlots(demoVenueIds) {
       },
     },
     attributes: ['id'],
+    transaction,
   });
 
   const courtIds = courts.map((court) => court.id);
@@ -413,6 +434,7 @@ async function getCandidateSlots(demoVenueIds) {
       },
     },
     attributes: ['slot_id'],
+    transaction,
   });
 
   const usedSlotIds = activeMatches
@@ -440,15 +462,18 @@ async function getCandidateSlots(demoVenueIds) {
       } : {}),
     },
     order: [['date', 'ASC'], ['time', 'ASC'], ['court_id', 'ASC']],
+    transaction,
   });
 }
 
-async function getPlayableVenueIds(preferredVenueIds = []) {
+async function getPlayableVenueIds(preferredVenueIds = [], options = {}) {
+  const transaction = options.transaction;
   const activeRules = await AvailabilityRule.findAll({
     where: {
       is_active: true,
     },
     attributes: ['venue_id'],
+    transaction,
   });
 
   const venueIds = new Set(preferredVenueIds);
@@ -463,13 +488,15 @@ async function getPlayableVenueIds(preferredVenueIds = []) {
   const to = dateToStr(addDays(today, 14));
 
   for (const venueId of venueIds) {
-    await ensureSlotsForRange(venueId, from, to);
+    await ensureSlotsForRange(venueId, from, to, { transaction });
   }
 
   return [...venueIds];
 }
 
-async function ensureDemoMatches(players, ensuredVenues) {
+async function ensureDemoMatches(players, ensuredVenues, options = {}) {
+  const transaction = options.transaction;
+  const targetOpenMatches = resolveTargetOpenMatches(options.targetOpenMatches);
   const openDemoMatchCount = await Match.count({
     where: {
       status: 'open',
@@ -477,16 +504,21 @@ async function ensureDemoMatches(players, ensuredVenues) {
         [Op.iLike]: `${DEMO_MATCH_PREFIX}%`,
       },
     },
+    transaction,
   });
 
-  const missingMatches = Math.max(0, TARGET_OPEN_MATCHES - openDemoMatchCount);
+  const missingMatches = Math.max(0, targetOpenMatches - openDemoMatchCount);
   if (missingMatches === 0) {
-    return { created: 0 };
+    return {
+      created: 0,
+      target_open_matches: targetOpenMatches,
+      existing_open_matches: openDemoMatchCount,
+    };
   }
 
   const demoVenueIds = ensuredVenues.map((item) => item.venue.id);
-  const playableVenueIds = await getPlayableVenueIds(demoVenueIds);
-  const candidateSlots = shuffle(await getCandidateSlots(playableVenueIds));
+  const playableVenueIds = await getPlayableVenueIds(demoVenueIds, { transaction });
+  const candidateSlots = shuffle(await getCandidateSlots(playableVenueIds, { transaction }));
   const maxMatchesToCreate = Math.min(missingMatches, candidateSlots.length);
   const createdMatches = [];
 
@@ -499,7 +531,7 @@ async function ensureDemoMatches(players, ensuredVenues) {
     const extraPlayers = eligiblePlayers.slice(0, extraPlayersCount);
     const matchNumber = String(openDemoMatchCount + index + 1).padStart(2, '0');
 
-    const transaction = await sequelize.transaction();
+    const localTransaction = transaction || await sequelize.transaction();
     try {
       const match = await Match.create({
         creator_id: creator.id,
@@ -512,29 +544,37 @@ async function ensureDemoMatches(players, ensuredVenues) {
         open_category: categoryRule.open_category,
         min_category_tier: categoryRule.min_category_tier,
         max_category_tier: categoryRule.max_category_tier,
-      }, { transaction });
+      }, { transaction: localTransaction });
 
       await MatchPlayer.create({
         match_id: match.id,
         user_id: creator.id,
-      }, { transaction });
+      }, { transaction: localTransaction });
 
       for (const player of extraPlayers) {
         await MatchPlayer.create({
           match_id: match.id,
           user_id: player.id,
-        }, { transaction });
+        }, { transaction: localTransaction });
       }
 
-      await transaction.commit();
+      if (!transaction) {
+        await localTransaction.commit();
+      }
       createdMatches.push(match);
     } catch (error) {
-      await transaction.rollback();
+      if (!transaction) {
+        await localTransaction.rollback();
+      }
       throw error;
     }
   }
 
-  return { created: createdMatches.length };
+  return {
+    created: createdMatches.length,
+    target_open_matches: targetOpenMatches,
+    existing_open_matches: openDemoMatchCount,
+  };
 }
 
 async function seedDemoData() {
@@ -591,5 +631,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  DEMO_MATCH_PREFIX,
+  TARGET_OPEN_MATCHES,
+  ensureDemoVenues,
+  ensureDemoPlayers,
+  ensureDemoMatches,
   seedDemoData,
 };

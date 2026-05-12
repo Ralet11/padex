@@ -72,17 +72,23 @@ function rangesOverlap(startA, endA, startB, endB) {
     return startA <= endB && startB <= endA;
 }
 
-async function ensureSlotsForRange(venueId, from, to) {
-    const venue = await Venue.findByPk(venueId, { attributes: ['id', 'price_per_slot'] });
+async function ensureSlotsForRange(venueId, from, to, options = {}) {
+    const transaction = options.transaction;
+    const venue = await Venue.findByPk(venueId, {
+        attributes: ['id', 'price_per_slot'],
+        transaction
+    });
     const courts = await Court.findAll({
         where: { venue_id: venueId },
-        attributes: ['id']
+        attributes: ['id'],
+        transaction
     });
     const rules = await AvailabilityRule.findAll({
         where: {
             venue_id: venueId,
             is_active: true
-        }
+        },
+        transaction
     });
     const dayOverrides = await AvailabilityException.findAll({
         where: {
@@ -91,14 +97,16 @@ async function ensureSlotsForRange(venueId, from, to) {
             date: {
                 [Op.between]: [from, to]
             }
-        }
+        },
+        transaction
     });
     const closures = await CourtClosure.findAll({
         where: {
             venue_id: venueId,
             start_date: { [Op.lte]: to },
             end_date: { [Op.gte]: from }
-        }
+        },
+        transaction
     });
 
     if (!venue || courts.length === 0 || (rules.length === 0 && dayOverrides.length === 0 && closures.length === 0)) {
@@ -120,7 +128,8 @@ async function ensureSlotsForRange(venueId, from, to) {
         include: [{
             model: Slot,
             attributes: ['id', 'court_id', 'date', 'time']
-        }]
+        }],
+        transaction
     });
     const protectedSlotKeys = new Set(
         activeMatches
@@ -174,7 +183,8 @@ async function ensureSlotsForRange(venueId, from, to) {
                         is_available: true,
                         booked_externally: false
                     },
-                    attributes: ['id', 'court_id', 'date', 'time']
+                    attributes: ['id', 'court_id', 'date', 'time'],
+                    transaction
                 });
 
                 const removableIds = removableSlots
@@ -185,7 +195,8 @@ async function ensureSlotsForRange(venueId, from, to) {
                     await Slot.destroy({
                         where: {
                             id: { [Op.in]: removableIds }
-                        }
+                        },
+                        transaction
                     });
                 }
             }
@@ -211,7 +222,8 @@ async function ensureSlotsForRange(venueId, from, to) {
                             duration,
                             price: pricePerSlot,
                             is_available: true
-                        }
+                        },
+                        transaction
                     });
 
                     if (wasCreated) created.push(slot);
@@ -223,7 +235,7 @@ async function ensureSlotsForRange(venueId, from, to) {
                             && !protectedSlotKeys.has(slotKey)
                             && Number(slot.price || 0) !== pricePerSlot
                         ) {
-                            await slot.update({ price: pricePerSlot });
+                            await slot.update({ price: pricePerSlot }, { transaction });
                         }
                         skipped += 1;
                     }
