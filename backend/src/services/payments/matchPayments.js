@@ -381,7 +381,10 @@ async function createJoinPaymentIntent({ requester, matchId }) {
         { model: MatchPlayer, as: 'Players' },
       ],
       transaction,
-      lock: transaction.LOCK.UPDATE,
+      lock: {
+        level: transaction.LOCK.UPDATE,
+        of: Match,
+      },
     });
 
     if (!match) throw createPublicError('Partido no encontrado', 404);
@@ -480,7 +483,10 @@ async function approvePaymentIntent(paymentId, { providerPaymentId = null, provi
         { model: MatchPlayer, as: 'Players' },
       ],
       transaction,
-      lock: transaction.LOCK.UPDATE,
+      lock: {
+        level: transaction.LOCK.UPDATE,
+        of: Match,
+      },
     });
 
     if (!match) throw createPublicError('Partido no encontrado', 404);
@@ -772,7 +778,10 @@ async function cancelIncompletePaidMatch(matchId, reason = 'match_incomplete_dea
     const match = await Match.findByPk(matchId, {
       include: [{ model: Slot, as: 'Slot' }],
       transaction,
-      lock: transaction.LOCK.UPDATE,
+      lock: {
+        level: transaction.LOCK.UPDATE,
+        of: Match,
+      },
     });
 
     if (!match || !normalizeMatchStateForPendingAccess(match)) return;
