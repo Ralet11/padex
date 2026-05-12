@@ -50,6 +50,17 @@ function serializePayment(payment) {
   };
 }
 
+function isTerminalPaymentStatus(status) {
+  return [
+    'approved',
+    'rejected',
+    'cancelled',
+    'expired',
+    'refund_pending',
+    'refunded',
+  ].includes(status);
+}
+
 router.post('/mercadopago/webhook', async (req, res) => {
   try {
     const notificationType = req.query.type || req.body?.type;
@@ -84,6 +95,48 @@ router.get('/:id', auth, async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Error consultando el pago' });
+  }
+});
+
+router.post('/:id/sync', auth, async (req, res) => {
+  try {
+    const payment = await MatchPayment.findByPk(req.params.id, {
+      include: [{ model: Match, as: 'Match', attributes: ['id', 'creator_id'] }],
+    });
+
+    if (!payment) return res.status(404).json({ error: 'Pago no encontrado' });
+    if (payment.user_id !== req.user.id && payment.Match?.creator_id !== req.user.id) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+
+    if (payment.provider !== 'mercadopago') {
+      return res.json({ payment: serializePayment(payment), synced: false });
+    }
+
+    const providerPaymentId = String(
+      req.body?.providerPaymentId
+      || payment.provider_payment_id
+      || ''
+    ).trim();
+
+    if (!providerPaymentId) {
+      if (isTerminalPaymentStatus(payment.status)) {
+        return res.json({ payment: serializePayment(payment), synced: false });
+      }
+
+      return res.status(400).json({ error: 'providerPaymentId requerido para sincronizar el pago' });
+    }
+
+    const syncedPayment = await syncMercadoPagoPayment(providerPaymentId);
+    if (Number(syncedPayment.id) !== Number(payment.id)) {
+      return res.status(409).json({ error: 'El pago remoto no coincide con el pago solicitado' });
+    }
+
+    await emitPaymentSlotUpdate(syncedPayment.slot_id, 'payment_client_synced');
+    return res.json({ payment: serializePayment(syncedPayment), synced: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ error: err.publicMessage || err.message || 'Error sincronizando el pago' });
   }
 });
 

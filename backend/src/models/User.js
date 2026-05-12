@@ -13,6 +13,16 @@ const User = sequelize.define('User', {
         allowNull: false,
         unique: true,
     },
+    google_sub: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+    },
+    apple_sub: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+    },
     password: {
         type: DataTypes.STRING,
         allowNull: false,

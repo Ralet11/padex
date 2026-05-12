@@ -19,7 +19,7 @@ function buildWebhookUrl() {
 
 function buildBackUrl(status, payment) {
   const base = `${MATCH_PAYMENT_CONFIG.mobile_scheme}://payments/result`;
-  return `${base}?status=${encodeURIComponent(status)}&payment_id=${encodeURIComponent(payment.id)}`;
+  return `${base}?status=${encodeURIComponent(status)}&local_payment_id=${encodeURIComponent(payment.id)}`;
 }
 
 async function mercadoPagoRequest(path, { method = 'GET', body = null, idempotencyKey = null } = {}) {

@@ -5,6 +5,13 @@ const { User } = require('../models');
 const { starsFromSelfCategory, categoryFromStars } = require('../services/elo');
 const auth = require('../middleware/auth');
 const { buildCanonicalUserPayload } = require('../services/competitive/userContracts');
+const {
+  SocialAuthError,
+  issueAuthToken,
+  findOrCreateSocialUser,
+  verifyGoogleIdentityToken,
+  verifyAppleIdentityToken,
+} = require('../services/socialAuth');
 
 const router = express.Router();
 
@@ -133,6 +140,55 @@ router.post('/login', async (req, res) => {
     res.json({ token, user: buildCanonicalUserPayload(user) });
   } catch (err) {
     console.error(`[auth.login] [${req.requestId}] error`);
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/social/:provider', async (req, res) => {
+  try {
+    const { provider } = req.params;
+
+    console.log(`[auth.social] [${req.requestId}] attempt`, {
+      provider,
+      hasGoogleToken: Boolean(req.body?.idToken),
+      hasAppleToken: Boolean(req.body?.identityToken),
+    });
+
+    let socialProfile = null;
+
+    if (provider === 'google') {
+      socialProfile = await verifyGoogleIdentityToken(req.body?.idToken);
+    } else if (provider === 'apple') {
+      socialProfile = await verifyAppleIdentityToken({
+        identityToken: req.body?.identityToken,
+        email: req.body?.email,
+        fullName: req.body?.fullName,
+      });
+    } else {
+      return res.status(400).json({ error: 'Proveedor social no soportado' });
+    }
+
+    const user = await findOrCreateSocialUser(socialProfile);
+    const token = issueAuthToken(user);
+
+    console.log(`[auth.social] [${req.requestId}] success`, {
+      provider,
+      userId: user.id,
+      email: user.email,
+    });
+
+    res.json({ token, user: buildCanonicalUserPayload(user) });
+  } catch (err) {
+    if (err instanceof SocialAuthError) {
+      console.warn(`[auth.social] [${req.requestId}] rejected`, {
+        provider: req.params.provider,
+        message: err.message,
+      });
+      return res.status(err.status).json({ error: err.message });
+    }
+
+    console.error(`[auth.social] [${req.requestId}] error`);
     console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
