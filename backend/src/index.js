@@ -13,6 +13,7 @@ const seedDatabase = require('./seed');
 const SyncWorker = require('./services/SyncWorker');
 const MatchPaymentsWorker = require('./services/MatchPaymentsWorker');
 const { setIO, getVenueRoom, getVenueDateRoom } = require('./services/realtime');
+const { runCanonicalFoundationBackfill } = require('./services/competitive/backfill');
 
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
@@ -208,6 +209,8 @@ sequelize.authenticate()
   })
   .then(async () => {
     await seedDatabase();
+    const foundationResult = await runCanonicalFoundationBackfill();
+    console.log('[startup] Competitive foundation ready:', foundationResult);
     console.log('[startup] ✅ PostgreSQL Models synchronized and seeded.');
     
     // Initialize background workers

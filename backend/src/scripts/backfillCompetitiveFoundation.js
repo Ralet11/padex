@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/padex';
 
 const { sequelize } = require('../models');

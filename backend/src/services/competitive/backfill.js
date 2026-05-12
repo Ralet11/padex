@@ -76,7 +76,12 @@ async function ensureCanonicalFoundation(options = {}) {
 }
 
 function buildCompetitiveProjection(user, fallbackLeagueId, fallbackSeasonId) {
-  const progressionPoints = Math.max(0, normalizeNumber(user.progression_points, user.stars || 0));
+  const legacyStars = Math.max(0, normalizeNumber(user.stars, 0));
+  const storedProgressionPoints = normalizeNumber(user.progression_points, null);
+  const progressionPoints = Math.max(
+    0,
+    storedProgressionPoints > 0 ? storedProgressionPoints : legacyStars
+  );
   const rating = normalizeNumber(user.competitive_rating, progressionPoints);
   const tier = user.competitive_tier || user.category_tier || categoryFromStars(progressionPoints);
 

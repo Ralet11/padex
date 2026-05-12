@@ -8,6 +8,9 @@
     "start": "node src/index.js",
     "seed:demo": "node src/scripts/seedDemoData.js",
     "backfill:competitive-foundation": "node src/scripts/backfillCompetitiveFoundation.js",
+    "season:create": "node src/scripts/createCompetitiveSeason.js",
+    "season:finalize": "node src/scripts/finalizeCompetitiveSeason.js",
+    "season:rollover": "node src/scripts/rolloverCompetitiveSeason.js",
     "verify:competitive-foundation": "node test_competitive_foundation.js"
   },
   "dependencies": {
