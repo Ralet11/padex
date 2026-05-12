@@ -250,7 +250,7 @@ router.get('/', auth, async (req, res) => {
           where: slotWhereRules,
           include: [{
             model: Court,
-            include: [{ model: Venue, attributes: ['id', 'price_per_slot'] }],
+            include: [{ model: Venue, attributes: ['id', 'name', 'address', 'image', 'price_per_slot'] }],
           }]
         },
         {
@@ -293,6 +293,10 @@ router.get('/', auth, async (req, res) => {
         court_id: matchData.Slot.Court.id,
         court_name: matchData.Slot.Court.name,
         court_address: matchData.Slot.Court.address,
+        venue_id: matchData.Slot.Court.Venue?.id,
+        venue_name: matchData.Slot.Court.Venue?.name,
+        venue_address: matchData.Slot.Court.Venue?.address,
+        venue_image: matchData.Slot.Court.Venue?.image,
         creator_name: matchData.Creator.name,
         creator_category: matchData.Creator.category_tier,
         creator_avatar: matchData.Creator.avatar,
@@ -334,7 +338,7 @@ router.get('/my', auth, async (req, res) => {
           model: Slot,
           include: [{
             model: Court,
-            include: [{ model: Venue, attributes: ['id', 'price_per_slot'] }],
+            include: [{ model: Venue, attributes: ['id', 'name', 'address', 'image', 'price_per_slot'] }],
           }],
         },
         { model: MatchPlayer, as: 'Players' } // Needed for player_count calculation
@@ -365,6 +369,10 @@ router.get('/my', auth, async (req, res) => {
         payment_required: Boolean(matchData.payment_required),
         court_name: matchData.Slot?.Court?.name,
         court_address: matchData.Slot?.Court?.address,
+        venue_id: matchData.Slot?.Court?.Venue?.id,
+        venue_name: matchData.Slot?.Court?.Venue?.name,
+        venue_address: matchData.Slot?.Court?.Venue?.address,
+        venue_image: matchData.Slot?.Court?.Venue?.image,
         player_count: matchData.Players.length,
         pricing: buildMatchPricingSnapshot({
           totalCourtPrice: effectivePrice,
