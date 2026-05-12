@@ -21,6 +21,16 @@ const NAV_ITEMS = [
   { to: '/operations/sede', label: 'Sede', icon: Settings },
 ];
 
+function getVenueMonogram(name) {
+  const parts = String(name || 'Tu sede')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  return (parts.map((part) => part.charAt(0)).join('') || 'P').toUpperCase();
+}
+
 export default function PartnerOperationsLayout({
   venue,
   title,
@@ -48,6 +58,8 @@ export default function PartnerOperationsLayout({
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('padex-partners-rail-collapsed', isRailCollapsed ? '1' : '0');
   }, [isRailCollapsed]);
+  const venueName = venue?.name || 'Tu sede';
+  const venueMonogram = getVenueMonogram(venueName);
 
   return (
     <div className={`operationsShell${isRailCollapsed ? ' railCollapsed' : ''}`}>
@@ -55,11 +67,17 @@ export default function PartnerOperationsLayout({
         Ir al contenido principal
       </a>
 
-      <aside className={`operationsRail glass${isRailCollapsed ? ' collapsed' : ''}`} aria-label="Barra lateral de navegacion">
+      <aside
+        className={`operationsRail glass${isRailCollapsed ? ' collapsed' : ''}`}
+        aria-label="Barra lateral de navegacion"
+        aria-expanded={!isRailCollapsed}
+      >
         <div className="operationsRailTop">
           <div className="operationsBrand">
-            <span className="dot"></span>
-            {!isRailCollapsed ? <span>PADEX <strong>PARTNER</strong></span> : null}
+            <span className="operationsBrandMark">
+              <span className="dot"></span>
+            </span>
+            <span className="operationsBrandText">PADEX <strong>PARTNER</strong></span>
           </div>
 
           <button
@@ -67,21 +85,19 @@ export default function PartnerOperationsLayout({
             className="icon-btn operationsRailToggle"
             onClick={() => setIsRailCollapsed((prev) => !prev)}
             aria-label={isRailCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
+            aria-expanded={!isRailCollapsed}
             title={isRailCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
           >
             {isRailCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
 
-        <div className={`operationsVenue glass${isRailCollapsed ? ' compact' : ''}`}>
-          {isRailCollapsed ? (
-            <strong>{(venue?.name || 'Tu sede').charAt(0).toUpperCase()}</strong>
-          ) : (
-            <>
-              <strong>{venue?.name || 'Tu sede'}</strong>
-              <span>{venue?.address || 'Sin direccion cargada'}</span>
-            </>
-          )}
+        <div className={`operationsVenue${isRailCollapsed ? ' compact' : ''}`}>
+          <strong className="operationsVenueMonogram">{venueMonogram}</strong>
+          <div className="operationsVenueCopy">
+            <strong>{venueName}</strong>
+            <span>{venue?.address || 'Sin direccion cargada'}</span>
+          </div>
         </div>
 
         <nav className="operationsNav" aria-label="Navegacion operativa">
@@ -96,8 +112,10 @@ export default function PartnerOperationsLayout({
                 aria-label={item.label}
                 title={item.label}
               >
-                <NavItemIcon size={18} />
-                {!isRailCollapsed ? <span>{item.label}</span> : null}
+                <span className="operationsNavIcon">
+                  <NavItemIcon size={18} strokeWidth={2.15} />
+                </span>
+                <span className="operationsNavText">{item.label}</span>
               </NavLink>
             );
           })}
@@ -106,24 +124,28 @@ export default function PartnerOperationsLayout({
         <div className="operationsRailFooter">
           <button
             type="button"
-            className={`btn-outline operationsRailButton${isRailCollapsed ? ' iconOnly' : ''}`}
+            className="btn-outline operationsRailButton"
             onClick={onRefresh}
             disabled={isRefreshing}
             aria-label={isRefreshing ? 'Actualizando agenda' : 'Actualizar'}
             title={isRefreshing ? 'Actualizando agenda' : 'Actualizar'}
           >
-            <RefreshCw size={16} className={isRefreshing ? 'spin' : ''} />
-            {!isRailCollapsed ? <span>{isRefreshing ? 'Actualizando...' : 'Actualizar'}</span> : null}
+            <span className="operationsNavIcon">
+              <RefreshCw size={16} strokeWidth={2.15} className={isRefreshing ? 'spin' : ''} />
+            </span>
+            <span className="operationsNavText">{isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
           </button>
           <button
             type="button"
-            className={`btn-outline operationsRailButton${isRailCollapsed ? ' iconOnly' : ''}`}
+            className="btn-outline operationsRailButton"
             onClick={onLogout}
             aria-label="Cerrar sesion"
             title="Cerrar sesion"
           >
-            <LogOut size={16} />
-            {!isRailCollapsed ? <span>Cerrar sesion</span> : null}
+            <span className="operationsNavIcon">
+              <LogOut size={16} strokeWidth={2.15} />
+            </span>
+            <span className="operationsNavText">Cerrar sesion</span>
           </button>
         </div>
       </aside>

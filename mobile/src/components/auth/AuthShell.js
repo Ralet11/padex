@@ -19,26 +19,16 @@ import { screenPadding } from '../../theme/layout';
 import { Typography } from '../ui/Typography';
 import { AuthKeyboardContext } from './AuthKeyboardContext';
 
-const PATTERN_SHAPES = [
-  { top: 12, left: 18, width: 54, height: 54, borderRadius: 20, backgroundColor: '#17181B' },
-  { top: 18, left: 78, width: 48, height: 48, borderRadius: 24, backgroundColor: '#121316' },
-  { top: 0, left: 136, width: 64, height: 64, borderRadius: 22, backgroundColor: '#1A1B1F' },
-  { top: 8, right: 26, width: 50, height: 50, borderRadius: 18, backgroundColor: '#17181B' },
-  { top: 62, left: 28, width: 68, height: 68, borderRadius: 24, backgroundColor: '#101114' },
-  { top: 76, left: 108, width: 42, height: 42, borderRadius: 14, backgroundColor: '#18191D' },
-  { top: 58, right: 84, width: 54, height: 54, borderRadius: 27, backgroundColor: '#131417' },
-  { top: 86, right: 28, width: 58, height: 58, borderRadius: 18, backgroundColor: '#1B1C20' },
-  { top: 124, left: 72, width: 48, height: 48, borderRadius: 24, backgroundColor: '#15161A' },
-  { top: 126, right: 124, width: 44, height: 44, borderRadius: 16, backgroundColor: '#111216' },
-];
-
 function HeaderPattern({ accentColor }) {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {PATTERN_SHAPES.map((shape, index) => (
-        <View key={index} style={[styles.patternShape, shape]} />
-      ))}
-      <View style={[styles.patternGlow, { backgroundColor: accentColor }]} />
+      <View style={[styles.patternAccentOrb, { backgroundColor: accentColor }]} />
+      <View style={styles.patternSoftOrb} />
+      <View style={styles.patternPanelWide} />
+      <View style={styles.patternPanelTall} />
+      <View style={styles.patternCourtLineHorizontal} />
+      <View style={styles.patternCourtLineVertical} />
+      <View style={styles.patternCourtArc} />
     </View>
   );
 }
@@ -53,6 +43,7 @@ export default function AuthShell({
   footer,
   bodyStyle,
   scrollContentStyle,
+  density = 'default',
 }) {
   const { colors, spacing, radius, shadows } = useTheme();
   const insets = useSafeAreaInsets();
@@ -62,6 +53,50 @@ export default function AuthShell({
   const scrollRef = useRef(null);
   const scrollOffsetRef = useRef(0);
   const isKeyboardVisible = keyboardInset > 0;
+  const isCompact = density === 'compact';
+  const showHeaderTopRow = Boolean(onBackPress || headerTitle);
+
+  const scrollPaddingTop = isKeyboardVisible
+    ? spacing.sm
+    : isCompact
+      ? spacing.sm
+      : spacing.lg;
+  const scrollPaddingBottom = Math.max(isCompact ? spacing.lg : spacing.xl, keyboardInset);
+  const headerMinHeight = isKeyboardVisible
+    ? isCompact
+      ? 156
+      : 168
+    : isCompact
+      ? 196
+      : 208;
+  const headerPaddingTop = isCompact ? spacing.md : spacing.lg;
+  const headerPaddingBottom = isKeyboardVisible
+    ? isCompact
+      ? spacing.md
+      : spacing.lg
+    : isCompact
+      ? spacing.lg + spacing.sm
+      : spacing.xxl;
+  const bodyMarginTop = -(isKeyboardVisible
+    ? isCompact
+      ? spacing.md
+      : spacing.lg
+    : isCompact
+      ? spacing.md + spacing.xs
+      : spacing.xl + spacing.xs);
+  const bodyPaddingHorizontal = isCompact ? spacing.md + 2 : spacing.lg;
+  const bodyPaddingTop = isKeyboardVisible
+    ? isCompact
+      ? spacing.md
+      : spacing.lg
+    : isCompact
+      ? spacing.lg
+      : spacing.xl;
+  const bodyPaddingBottom = isCompact ? spacing.md + 2 : spacing.lg;
+  const headerTopRowMarginBottom = isCompact ? 2 : 8;
+  const bodyTitleMarginBottom = isCompact ? 4 : 8;
+  const bodySubtitleMarginBottom = isCompact ? 18 : 28;
+  const footerMarginTop = isCompact ? 14 : 22;
 
   const scrollFocusedInputIntoView = useCallback(
     (inputHandle) => {
@@ -133,8 +168,8 @@ export default function AuthShell({
                 styles.scrollContent,
                 {
                   paddingHorizontal: screenPadding.horizontal,
-                  paddingTop: isKeyboardVisible ? spacing.sm : spacing.lg,
-                  paddingBottom: Math.max(spacing.xl, keyboardInset),
+                  paddingTop: scrollPaddingTop,
+                  paddingBottom: scrollPaddingBottom,
                   justifyContent: isKeyboardVisible ? 'flex-start' : 'center',
                 },
                 scrollContentStyle,
@@ -166,14 +201,17 @@ export default function AuthShell({
                     },
                   ]}
                 >
-                  <View
+                  <LinearGradient
+                    colors={['#090A0E', '#11151E', '#0C1017']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                     style={[
                       styles.header,
                       {
-                        minHeight: isKeyboardVisible ? 168 : 208,
+                        minHeight: headerMinHeight,
                         paddingHorizontal: spacing.lg,
-                        paddingTop: spacing.lg,
-                        paddingBottom: isKeyboardVisible ? spacing.lg : spacing.xxl,
+                        paddingTop: headerPaddingTop,
+                        paddingBottom: headerPaddingBottom,
                         borderTopLeftRadius: radius.xxl + 4,
                         borderTopRightRadius: radius.xxl + 4,
                       },
@@ -181,48 +219,50 @@ export default function AuthShell({
                   >
                     <HeaderPattern accentColor={`${colors.accent}22`} />
 
-                    <View style={styles.headerTopRow}>
-                      <View style={styles.headerActionSlot}>
-                        {onBackPress ? (
-                          <TouchableOpacity
-                            accessibilityLabel="Volver"
-                            accessibilityRole="button"
-                            activeOpacity={0.8}
-                            onPress={onBackPress}
-                            style={styles.backButton}
+                    {showHeaderTopRow ? (
+                      <View style={[styles.headerTopRow, { marginBottom: headerTopRowMarginBottom }]}>
+                        <View style={styles.headerActionSlot}>
+                          {onBackPress ? (
+                            <TouchableOpacity
+                              accessibilityLabel="Volver"
+                              accessibilityRole="button"
+                              activeOpacity={0.8}
+                              onPress={onBackPress}
+                              style={styles.backButton}
+                            >
+                              <ChevronLeft color="#F4F4F5" size={18} />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+
+                        {headerTitle ? (
+                          <Typography
+                            variant="h3"
+                            weight="medium"
+                            align="center"
+                            style={styles.headerTitle}
                           >
-                            <ChevronLeft color="#F4F4F5" size={18} />
-                          </TouchableOpacity>
-                        ) : null}
+                            {headerTitle}
+                          </Typography>
+                        ) : (
+                          <View style={styles.headerTitleSpacer} />
+                        )}
+
+                        <View style={styles.headerActionSlot} />
                       </View>
-
-                      {headerTitle ? (
-                        <Typography
-                          variant="h3"
-                          weight="medium"
-                          align="center"
-                          style={styles.headerTitle}
-                        >
-                          {headerTitle}
-                        </Typography>
-                      ) : (
-                        <View style={styles.headerTitleSpacer} />
-                      )}
-
-                      <View style={styles.headerActionSlot} />
-                    </View>
+                    ) : null}
 
                     {headerContent}
-                  </View>
+                  </LinearGradient>
 
                   <View
                     style={[
                       styles.body,
                       {
-                        marginTop: -(isKeyboardVisible ? spacing.lg : spacing.xl + spacing.xs),
-                        paddingHorizontal: spacing.lg,
-                        paddingTop: isKeyboardVisible ? spacing.lg : spacing.xl,
-                        paddingBottom: spacing.lg,
+                        marginTop: bodyMarginTop,
+                        paddingHorizontal: bodyPaddingHorizontal,
+                        paddingTop: bodyPaddingTop,
+                        paddingBottom: bodyPaddingBottom,
                         borderTopLeftRadius: radius.xxl + 8,
                         borderTopRightRadius: radius.xxl + 8,
                       },
@@ -230,7 +270,11 @@ export default function AuthShell({
                     ]}
                   >
                     {title ? (
-                      <Typography variant="h2" align="center" style={styles.bodyTitle}>
+                      <Typography
+                        variant="h2"
+                        align="center"
+                        style={[styles.bodyTitle, { marginBottom: bodyTitleMarginBottom }]}
+                      >
                         {title}
                       </Typography>
                     ) : null}
@@ -239,7 +283,13 @@ export default function AuthShell({
                       <Typography
                         variant="body"
                         align="center"
-                        style={[styles.bodySubtitle, { color: colors.text.secondary }]}
+                        style={[
+                          styles.bodySubtitle,
+                          {
+                            color: colors.text.secondary,
+                            marginBottom: bodySubtitleMarginBottom,
+                          },
+                        ]}
                       >
                         {subtitle}
                       </Typography>
@@ -247,7 +297,7 @@ export default function AuthShell({
 
                     {children}
 
-                    {footer ? <View style={styles.footer}>{footer}</View> : null}
+                    {footer ? <View style={[styles.footer, { marginTop: footerMarginTop }]}>{footer}</View> : null}
                   </View>
                 </View>
               </View>
@@ -280,16 +330,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   bgOrbLeft: {
-    width: 180,
-    height: 180,
-    top: -28,
-    left: -34,
+    width: 168,
+    height: 168,
+    top: -14,
+    left: -26,
   },
   bgOrbRight: {
-    width: 150,
-    height: 150,
-    bottom: 28,
-    right: -24,
+    width: 132,
+    height: 132,
+    bottom: 42,
+    right: -18,
   },
   frame: {
     width: '100%',
@@ -332,31 +382,81 @@ const styles = StyleSheet.create({
   headerTitleSpacer: {
     flex: 1,
   },
-  patternShape: {
+  patternAccentOrb: {
     position: 'absolute',
-    opacity: 0.94,
-  },
-  patternGlow: {
-    position: 'absolute',
-    top: 18,
-    right: 62,
-    width: 8,
-    height: 8,
+    width: 148,
+    height: 148,
     borderRadius: 999,
+    top: -18,
+    right: -26,
+    opacity: 0.18,
+  },
+  patternSoftOrb: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 999,
+    bottom: -26,
+    left: -18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  patternPanelWide: {
+    position: 'absolute',
+    top: 22,
+    left: 18,
+    width: '66%',
+    height: 82,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.025)',
+  },
+  patternPanelTall: {
+    position: 'absolute',
+    top: 54,
+    right: 18,
+    width: 88,
+    height: 94,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
+  patternCourtLineHorizontal: {
+    position: 'absolute',
+    left: 26,
+    right: 26,
+    bottom: 54,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  patternCourtLineVertical: {
+    position: 'absolute',
+    top: 34,
+    bottom: 34,
+    left: '50%',
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  patternCourtArc: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    bottom: -80,
+    left: 22,
   },
   body: {
     backgroundColor: '#FFFEFD',
   },
   bodyTitle: {
     color: '#17181B',
-    marginBottom: 8,
     letterSpacing: -0.5,
   },
   bodySubtitle: {
-    marginBottom: 28,
     paddingHorizontal: 8,
   },
-  footer: {
-    marginTop: 22,
-  },
+  footer: {},
 });

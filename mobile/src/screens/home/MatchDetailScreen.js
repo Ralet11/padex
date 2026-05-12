@@ -5,6 +5,11 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { matchesAPI, ratingsAPI, resolveAssetUrl } from '../../services/api';
+import {
+  getMatchPaymentOutcomeMessage,
+  isMatchPaymentIntentRequired,
+  startMatchPaymentFlow,
+} from '../../services/matchPayments';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { Avatar, Button, Skeleton, InlineError } from '../../components/ui';
@@ -189,9 +194,31 @@ export default function MatchDetailScreen({ route, navigation }) {
   async function handleJoin() {
     setActionLoading(true);
     try {
-      const res = await matchesAPI.join(matchId);
-      setMatch(res.data.match);
-      if (getMatchState(res.data.match) === MATCH_STATES.RESERVED) {
+      let updatedMatch = null;
+
+      try {
+        const res = await matchesAPI.join(matchId);
+        updatedMatch = res?.data?.match || null;
+      } catch (error) {
+        if (!isMatchPaymentIntentRequired(error)) {
+          throw error;
+        }
+
+        const paymentResult = await startMatchPaymentFlow(() => matchesAPI.joinPaymentIntent(matchId));
+        if (paymentResult.status !== 'approved') {
+          throw new Error(getMatchPaymentOutcomeMessage(paymentResult.status));
+        }
+
+        const refreshedMatch = await matchesAPI.get(paymentResult.matchId || matchId);
+        updatedMatch = refreshedMatch?.data?.match || null;
+      }
+
+      if (!updatedMatch) {
+        throw new Error('No se pudo actualizar el partido.');
+      }
+
+      setMatch(updatedMatch);
+      if (getMatchState(updatedMatch) === MATCH_STATES.RESERVED) {
         Alert.alert('Partido reservado', 'Este partido completo el cupo y se quedo con el turno.');
       }
     } catch (err) {

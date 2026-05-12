@@ -1,33 +1,76 @@
 import React from 'react';
 import { ShieldAlert } from 'lucide-react';
+import { shiftDateStr, todayStr } from '../lib/dates';
 
-export default function ExceptionsWorkspace({ courts, exceptions, formatDateLabel, onOpenDayOverride, onOpenClosure }) {
+export default function ExceptionsWorkspace({
+  courts,
+  exceptions,
+  formatDateLabel,
+  onOpenDayOverride,
+  onOpenClosure,
+  onSelectedDateChange,
+}) {
+  const isTodaySelected = exceptions.selectedDate === todayStr();
+
   return (
     <div className="stack">
-      <section className="hero glass compactHero">
-        <div>
-          <p className="eyebrow">Excepciones</p>
-          <h2>Overrides y cierres</h2>
-          <p className="subtle">Separá cambios diarios de la planificación recurrente y visualizá su rango de impacto real.</p>
+      <section className={`dayNavigator ${isTodaySelected ? 'today' : 'otherDay'}`}>
+        <div className="dayNavigatorMain">
+          <div className="dayStepper">
+            <button
+              type="button"
+              className="navDayBtn"
+              aria-label="Dia anterior"
+              onClick={() => onSelectedDateChange(shiftDateStr(exceptions.selectedDate || todayStr(), -1))}
+            >
+              Ant.
+            </button>
+            <div className="currentDayBlock">
+              <span>{isTodaySelected ? 'Hoy' : 'Fecha'}</span>
+              <strong>{exceptions.selectedDate ? formatDateLabel(exceptions.selectedDate, true) : 'Selecciona una fecha'}</strong>
+            </div>
+            <button
+              type="button"
+              className="navDayBtn"
+              aria-label="Dia siguiente"
+              onClick={() => onSelectedDateChange(shiftDateStr(exceptions.selectedDate || todayStr(), 1))}
+            >
+              Sig.
+            </button>
+          </div>
         </div>
-        <div className="actions">
-          <button className="btn-outline" onClick={onOpenDayOverride}>Modificar día seleccionado</button>
+
+        <div className="dayNavigatorMeta">
+          <button type="button" className="btn-primary-sm" onClick={onOpenDayOverride}>
+            Editar dia
+          </button>
+          <button type="button" className={`todayShortcut ${isTodaySelected ? 'active' : ''}`} onClick={() => onSelectedDateChange(todayStr())}>
+            Ir a hoy
+          </button>
+          <label>
+            <span>Fecha</span>
+            <input
+              type="date"
+              value={exceptions.selectedDate}
+              onChange={(event) => onSelectedDateChange(event.target.value)}
+            />
+          </label>
         </div>
       </section>
 
       <section className="stats statsThreeCols">
         <article className="stat glass">
-          <span>Override del día</span>
+          <span>Override del dia</span>
           <strong>{exceptions.selectedDayOverride ? 'Activo' : 'Base'}</strong>
-          <small>{exceptions.selectedDayOverride ? `${exceptions.selectedDayOverride.windows?.length || 0} franjas especiales` : 'Hoy sigue usando la regla semanal.'}</small>
+          <small>{exceptions.selectedDayOverride ? `${exceptions.selectedDayOverride.windows?.length || 0} franjas especiales` : 'La fecha elegida usa la regla semanal.'}</small>
         </article>
         <article className="stat glass">
-          <span>Clausuras activas</span>
-          <strong>{exceptions.urgentClosures.length}</strong>
-          <small>Impactan disponibilidad y lectura operativa actual.</small>
+          <span>Clausuras del dia</span>
+          <strong>{exceptions.selectedDateClosures.length}</strong>
+          <small>Impactan la fecha elegida.</small>
         </article>
         <article className="stat glass">
-          <span>Próximos ajustes</span>
+          <span>Proximos ajustes</span>
           <strong>{exceptions.exceptionSummaries.length + exceptions.closureSummaries.length}</strong>
           <small>Excepciones y cierres dentro del rango cargado.</small>
         </article>
@@ -39,9 +82,9 @@ export default function ExceptionsWorkspace({ courts, exceptions, formatDateLabe
             <div>
               <p className="eyebrow">Override diario</p>
               <h3>{formatDateLabel(exceptions.selectedDate, true)}</h3>
-              <p className="subtle">{exceptions.selectedDayOverride ? 'Este día ya tiene una excepción guardada.' : 'Todavía usa la regla semanal.'}</p>
+              <p className="subtle">{exceptions.selectedDayOverride ? 'Este dia ya tiene una excepcion guardada.' : 'Todavia usa la regla semanal.'}</p>
             </div>
-            <button className="btn-primary-sm" onClick={onOpenDayOverride}>Editar día</button>
+            <button className="btn-outline compact" onClick={onOpenDayOverride}>Modificar dia</button>
           </div>
 
           {exceptions.selectedDayOverride ? (
@@ -58,20 +101,20 @@ export default function ExceptionsWorkspace({ courts, exceptions, formatDateLabe
         <article className="operationsPanel glass">
           <div className="panelHeader">
             <div>
-              <p className="eyebrow">Clausuras activas</p>
-              <h3>{exceptions.urgentClosures.length}</h3>
-              <p className="subtle">Incidentes operativos que impactan la disponibilidad actual.</p>
+              <p className="eyebrow">Clausuras de la fecha</p>
+              <h3>{exceptions.selectedDateClosures.length}</h3>
+              <p className="subtle">Cierres que afectan el dia elegido.</p>
             </div>
           </div>
 
           <div className="listStack">
-            {exceptions.urgentClosures.length ? exceptions.urgentClosures.map((closure) => (
+            {exceptions.selectedDateClosures.length ? exceptions.selectedDateClosures.map((closure) => (
               <div key={closure.id} className="listCard">
                 <strong>{closure.courtName}</strong>
                 <p className="subtle">{closure.affectedRange}</p>
                 {closure.reason ? <small>{closure.reason}</small> : null}
               </div>
-            )) : <div className="emptyState"><span>No hay clausuras activas hoy.</span></div>}
+            )) : <div className="emptyState"><span>No hay clausuras para esta fecha.</span></div>}
           </div>
         </article>
       </section>
@@ -80,7 +123,7 @@ export default function ExceptionsWorkspace({ courts, exceptions, formatDateLabe
         <article className="operationsPanel glass">
           <div className="panelHeader">
             <div>
-              <p className="eyebrow">Historial de días modificados</p>
+              <p className="eyebrow">Dias modificados</p>
               <h3>{exceptions.exceptionSummaries.length}</h3>
             </div>
           </div>
@@ -121,26 +164,28 @@ export default function ExceptionsWorkspace({ courts, exceptions, formatDateLabe
       <section className="operationsPanel glass">
         <div className="panelHeader">
           <div>
-            <p className="eyebrow">Cierres por inventario</p>
+            <p className="eyebrow">Por cancha</p>
             <h3>{courts.length} canchas monitoreadas</h3>
-            <p className="subtle">Abrí una clausura nueva desde la cancha afectada para no mezclar incidentes con configuración diaria.</p>
+            <p className="subtle">Crea o edita clausuras puntuales desde la cancha afectada.</p>
           </div>
         </div>
         <div className="compactGrid">
           {courts.map((court) => {
             const courtClosures = exceptions.closuresByCourt[court.id] || [];
-            const activeClosure = courtClosures.find((closure) => closure.end_date >= exceptions.selectedDate) || null;
+            const activeClosure = courtClosures.find((closure) => (
+              closure.start_date <= exceptions.selectedDate && closure.end_date >= exceptions.selectedDate
+            )) || null;
 
             return (
               <article key={court.id} className="listCard miniSurfaceCard">
                 <div className="listCardRow">
                   <div>
                     <strong>{court.name}</strong>
-                    <p className="subtle">{activeClosure ? `${formatDateLabel(activeClosure.start_date)} → ${formatDateLabel(activeClosure.end_date)}` : 'Sin clausura activa en la fecha elegida.'}</p>
+                    <p className="subtle">{activeClosure ? `${formatDateLabel(activeClosure.start_date)} -> ${formatDateLabel(activeClosure.end_date)}` : 'Sin clausura activa en la fecha elegida.'}</p>
                   </div>
                   {activeClosure ? <span className="miniBadge closed">Activa</span> : <span className="miniBadge free">Libre</span>}
                 </div>
-                <small>{activeClosure?.reason || 'Podés cargar una clausura puntual si la cancha sale de operación.'}</small>
+                <small>{activeClosure?.reason || 'Puedes cargar una clausura puntual si la cancha sale de operacion.'}</small>
                 <div className="cardActions compactActions">
                   <button className="btn-outline compact" onClick={() => onOpenClosure(court)}>{activeClosure ? 'Editar clausura' : 'Nueva clausura'}</button>
                 </div>

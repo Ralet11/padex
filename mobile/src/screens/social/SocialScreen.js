@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
-  TouchableOpacity, Alert, RefreshControl,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -11,16 +17,17 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { spacing, radius, shadows } from '../../theme/spacing';
+import Avatar from '../../components/Avatar';
 import PlayerCard from '../../components/PlayerCard';
-import { Button, InlineError, Skeleton, useToast } from '../../components/ui';
+import { InlineError, Skeleton, useToast } from '../../components/ui';
 import { getRankByTier } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
 
-const TABS = ['Buscar', 'Compañeros', 'Solicitudes'];
+const TABS = ['Buscar', 'Companeros', 'Solicitudes'];
 
 export default function SocialScreen({ navigation }) {
   const { user } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const toast = useToast();
 
   const [tab, setTab] = useState('Buscar');
@@ -35,11 +42,12 @@ export default function SocialScreen({ navigation }) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
       if (tab === 'Buscar') {
         const res = await socialAPI.players({ q: search || undefined });
         setPlayers(res.data.players);
-      } else if (tab === 'Compañeros') {
+      } else if (tab === 'Companeros') {
         const res = await socialAPI.connections();
         setConnections(res.data.connections);
       } else {
@@ -61,13 +69,16 @@ export default function SocialScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      if (tab === 'Compañeros') {
+      if (tab === 'Companeros') {
         fetchData();
       }
     }, [fetchData, tab])
   );
 
-  const onRefresh = () => { setRefreshing(true); fetchData(); };
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
 
   async function sendRequest(userId) {
     try {
@@ -107,41 +118,141 @@ export default function SocialScreen({ navigation }) {
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: colors.text.primary }]}
           onPress={() => sendRequest(player.id)}
-          accessibilityLabel={`Enviar solicitud de conexión a ${player.name}`}
+          accessibilityLabel={`Enviar solicitud de conexion a ${player.name}`}
           accessibilityRole="button"
         >
           <Text style={[typography.captionMedium, { color: colors.accent }]}>Conectar</Text>
         </TouchableOpacity>
       );
     }
+
     if (player.connection_status === 'pending') {
       const isMine = player.requester_id === user.id;
       return (
         <View style={[styles.chip, { backgroundColor: colors.surfaceHighlight }]}>
-          <Text style={[typography.caption, { color: colors.text.secondary }]}>{isMine ? 'Enviada' : 'Pendiente'}</Text>
+          <Text style={[typography.caption, { color: colors.text.secondary }]}>
+            {isMine ? 'Enviada' : 'Pendiente'}
+          </Text>
         </View>
       );
     }
+
     if (player.connection_status === 'accepted') {
       return (
         <View style={[styles.chip, { backgroundColor: colors.surfaceHighlight }]}>
-          <Text style={[typography.captionMedium, { color: colors.accent }]}>✓ Compañero</Text>
+          <Text style={[typography.captionMedium, { color: colors.accent }]}>
+            Companero
+          </Text>
         </View>
       );
     }
+
     return null;
+  }
+
+  function renderConnection({ item }) {
+    const partnerTier = item.partner_category_tier || item.partner_category;
+    const partnerRank = getRankByTier(partnerTier);
+
+    return (
+      <TouchableOpacity
+        style={[styles.connCard, { borderBottomColor: colors.borderLight }]}
+        onPress={() => openChat(item)}
+        accessibilityLabel={`Abrir chat con ${item.partner_name}`}
+        accessibilityRole="button"
+      >
+        <View style={styles.connLeft}>
+          <Avatar
+            name={item.partner_name}
+            uri={item.partner_avatar}
+            size={48}
+            category={partnerRank.name}
+          />
+          <View style={styles.copyWrap}>
+            <Text style={[typography.bodyBold, { color: colors.text.primary }]} numberOfLines={1}>
+              {item.partner_name}
+            </Text>
+            <Text
+              style={[typography.caption, { color: colors.text.secondary, textTransform: 'capitalize' }]}
+              numberOfLines={1}
+            >
+              {partnerRank.name} · {item.partner_stars} Estrellas
+            </Text>
+            {item.last_message ? (
+              <Text
+                style={[typography.caption, { color: colors.text.tertiary, marginTop: 4 }]}
+                numberOfLines={1}
+              >
+                {item.last_message}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+        <View style={styles.connRight}>
+          {item.unread_count > 0 ? (
+            <View style={[styles.unreadBadge, { backgroundColor: colors.text.primary }]}>
+              <Text style={[styles.unreadText, { color: colors.accent }]}>{item.unread_count}</Text>
+            </View>
+          ) : null}
+          <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  function renderPendingRequest({ item }) {
+    const requesterTier = item.category_tier || item.category;
+    const requesterRank = getRankByTier(requesterTier);
+
+    return (
+      <View style={[styles.requestCard, { borderBottomColor: colors.borderLight }]}>
+        <View style={styles.reqLeft}>
+          <Avatar
+            name={item.name}
+            uri={item.avatar}
+            size={48}
+            category={requesterRank.name}
+          />
+          <View style={styles.copyWrap}>
+            <Text style={[typography.bodyBold, { color: colors.text.primary }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={[typography.caption, { color: colors.text.secondary }]} numberOfLines={1}>
+              {requesterRank.name} · {item.stars} Estrellas
+            </Text>
+          </View>
+        </View>
+        <View style={styles.reqBtns}>
+          <TouchableOpacity
+            onPress={() => respondRequest(item.id, 'reject')}
+            style={[styles.iconBtn, { backgroundColor: colors.surfaceHighlight }]}
+            accessibilityLabel={`Rechazar solicitud de ${item.name}`}
+            accessibilityRole="button"
+          >
+            <Feather name="x" size={18} color={colors.text.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => respondRequest(item.id, 'accept')}
+            style={[styles.iconBtn, { backgroundColor: colors.text.primary }]}
+            accessibilityLabel={`Aceptar solicitud de ${item.name}`}
+            accessibilityRole="button"
+          >
+            <Feather name="check" size={18} color={colors.accent} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-
-      {/* Modern Header */}
       <View style={styles.header}>
         <Text style={[typography.h1, { color: colors.text.primary }]}>Social</Text>
-        <Text style={[typography.body, { color: colors.text.secondary, marginTop: 4 }]}>Conecta con otros jugadores.</Text>
+        <Text style={[typography.body, { color: colors.text.secondary, marginTop: 4 }]}>
+          Conecta con otros jugadores.
+        </Text>
       </View>
 
-      {/* Segmented iOS-style Tabs */}
       <View style={{ paddingHorizontal: screenPadding.horizontal, marginBottom: spacing.md }}>
         <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceHighlight }]}>
           {TABS.map((t) => {
@@ -151,28 +262,31 @@ export default function SocialScreen({ navigation }) {
                 key={t}
                 style={[styles.segmentBtn, isActive && { backgroundColor: colors.text.primary, ...shadows.sm }]}
                 onPress={() => setTab(t)}
-                accessibilityLabel={`Pestaña ${t}`}
+                accessibilityLabel={`Pestana ${t}`}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isActive }}
               >
-                <Text style={[
-                  typography.label,
-                  { color: isActive ? colors.accent : colors.text.secondary },
-                  isActive && { fontWeight: '700' }
-                ]}>
+                <Text
+                  style={[
+                    typography.label,
+                    { color: isActive ? colors.accent : colors.text.secondary },
+                    isActive && { fontWeight: '700' },
+                  ]}
+                >
                   {t}
                 </Text>
-                {t === 'Solicitudes' && pending.length > 0 && (
-                  <View style={[styles.badge, { backgroundColor: colors.danger }]}><Text style={[styles.badgeText, { color: colors.text.inverse }]}>{pending.length}</Text></View>
-                )}
+                {t === 'Solicitudes' && pending.length > 0 ? (
+                  <View style={[styles.badge, { backgroundColor: colors.danger }]}>
+                    <Text style={[styles.badgeText, { color: colors.text.inverse }]}>{pending.length}</Text>
+                  </View>
+                ) : null}
               </TouchableOpacity>
             );
           })}
         </View>
       </View>
 
-      {/* Search Input */}
-      {tab === 'Buscar' && (
+      {tab === 'Buscar' ? (
         <View style={{ paddingHorizontal: screenPadding.horizontal, marginBottom: spacing.md }}>
           <View style={[styles.searchBar, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
             <Feather name="search" size={18} color={colors.text.tertiary} style={styles.searchIcon} />
@@ -184,15 +298,19 @@ export default function SocialScreen({ navigation }) {
               placeholderTextColor={colors.text.tertiary}
             />
             {search ? (
-              <TouchableOpacity onPress={() => setSearch('')} hitSlop={10} accessibilityLabel="Limpiar búsqueda" accessibilityRole="button">
+              <TouchableOpacity
+                onPress={() => setSearch('')}
+                hitSlop={10}
+                accessibilityLabel="Limpiar busqueda"
+                accessibilityRole="button"
+              >
                 <Feather name="x-circle" size={18} color={colors.text.tertiary} />
               </TouchableOpacity>
             ) : null}
           </View>
         </View>
-      )}
+      ) : null}
 
-      {/* Content */}
       <View style={{ flex: 1 }}>
         {loading ? (
           <View style={{ paddingHorizontal: screenPadding.horizontal, paddingTop: spacing.sm }}>
@@ -200,13 +318,15 @@ export default function SocialScreen({ navigation }) {
               <Skeleton key={i} width="100%" height={72} radius={radius.lg} style={{ marginBottom: spacing.sm }} />
             ))}
           </View>
-        ) : error ? (
+        ) : null}
+
+        {!loading && error ? (
           <View style={{ paddingHorizontal: screenPadding.horizontal, marginBottom: spacing.md }}>
             <InlineError message={error} onRetry={fetchData} />
           </View>
         ) : null}
 
-        {!loading && !error && tab === 'Buscar' && (
+        {!loading && !error && tab === 'Buscar' ? (
           <FlatList
             data={players}
             keyExtractor={(item) => String(item.id)}
@@ -221,96 +341,48 @@ export default function SocialScreen({ navigation }) {
             )}
             contentContainerStyle={styles.list}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text.primary} />}
-            ListEmptyComponent={!loading ? (
+            ListEmptyComponent={
               <View style={styles.empty}>
                 <Feather name="search" size={32} color={colors.text.tertiary} style={{ marginBottom: spacing.sm }} />
                 <Text style={[typography.body, { color: colors.text.secondary }]}>No se encontraron jugadores</Text>
               </View>
-            ) : null}
+            }
           />
-        )}
+        ) : null}
 
-        {!loading && !error && tab === 'Compañeros' && (
+        {!loading && !error && tab === 'Companeros' ? (
           <FlatList
             data={connections}
             keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.connCard, { borderBottomColor: colors.borderLight }]}
-                onPress={() => openChat(item)}
-                accessibilityLabel={`Abrir chat con ${item.partner_name}`}
-                accessibilityRole="button"
-              >
-                <View style={styles.connLeft}>
-                  <View style={[styles.connAvatar, { backgroundColor: colors.surfaceHighlight }]}>
-                    <Text style={[typography.h3, { color: colors.text.primary }]}>{item.partner_name?.[0]?.toUpperCase() || '?'}</Text>
-                  </View>
-                  <View>
-                    <Text style={[typography.bodyBold, { color: colors.text.primary }]}>{item.partner_name}</Text>
-                    <Text style={[typography.caption, { color: colors.text.secondary, textTransform: 'capitalize' }]}>
-                      {getRankByTier(item.partner_category_tier).name} · {item.partner_stars} Estrellas
-                    </Text>
-                    {item.last_message && <Text style={[typography.caption, { color: colors.text.tertiary, marginTop: 4 }]} numberOfLines={1}>{item.last_message}</Text>}
-                  </View>
-                </View>
-                <View style={styles.connRight}>
-                  {item.unread_count > 0 && (
-                    <View style={[styles.unreadBadge, { backgroundColor: colors.text.primary }]}>
-                      <Text style={[styles.unreadText, { color: colors.accent }]}>{item.unread_count}</Text>
-                    </View>
-                  )}
-                  <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
-                </View>
-              </TouchableOpacity>
-            )}
+            renderItem={renderConnection}
             contentContainerStyle={styles.list}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text.primary} />}
-            ListEmptyComponent={!loading ? (
+            ListEmptyComponent={
               <View style={styles.empty}>
                 <Feather name="users" size={32} color={colors.text.tertiary} style={{ marginBottom: spacing.sm }} />
-                <Text style={[typography.body, { color: colors.text.secondary, textAlign: 'center' }]}>Aún no tenés compañeros{'\n'}Buscá jugadores y conectate</Text>
+                <Text style={[typography.body, { color: colors.text.secondary, textAlign: 'center' }]}>
+                  Aun no tenes companeros{'\n'}Busca jugadores y conectate
+                </Text>
               </View>
-            ) : null}
+            }
           />
-        )}
+        ) : null}
 
-        {!loading && !error && tab === 'Solicitudes' && (
+        {!loading && !error && tab === 'Solicitudes' ? (
           <FlatList
             data={pending}
             keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => (
-              <View style={[styles.requestCard, { borderBottomColor: colors.borderLight }]}>
-                <View style={styles.reqLeft}>
-                  <View style={[styles.connAvatar, { backgroundColor: colors.surfaceHighlight }]}>
-                    <Text style={[typography.h3, { color: colors.text.primary }]}>{item.name?.[0]?.toUpperCase() || '?'}</Text>
-                  </View>
-                  <View>
-                    <Text style={[typography.bodyBold, { color: colors.text.primary }]}>{item.name}</Text>
-                    <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                      {getRankByTier(item.category_tier).name} · {item.stars} Estrellas
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.reqBtns}>
-                  <TouchableOpacity onPress={() => respondRequest(item.id, 'reject')} style={[styles.iconBtn, { backgroundColor: colors.surfaceHighlight }]} accessibilityLabel={`Rechazar solicitud de ${item.name}`} accessibilityRole="button">
-                    <Feather name="x" size={18} color={colors.text.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => respondRequest(item.id, 'accept')} style={[styles.iconBtn, { backgroundColor: colors.text.primary }]} accessibilityLabel={`Aceptar solicitud de ${item.name}`} accessibilityRole="button">
-                    <Feather name="check" size={18} color={colors.accent} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+            renderItem={renderPendingRequest}
             contentContainerStyle={styles.list}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text.primary} />}
-            ListEmptyComponent={!loading ? (
+            ListEmptyComponent={
               <View style={styles.empty}>
                 <Feather name="inbox" size={32} color={colors.text.tertiary} style={{ marginBottom: spacing.sm }} />
                 <Text style={[typography.body, { color: colors.text.secondary }]}>Sin solicitudes pendientes</Text>
               </View>
-            ) : null}
+            }
           />
-        )}
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -335,7 +407,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 4
+    gap: 4,
   },
   badge: {
     borderRadius: 8,
@@ -355,18 +427,18 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 15, paddingVertical: 12 },
-  list: { paddingBottom: 120 }, // Leaves room for FloatingTabBar
+  list: { paddingBottom: 120 },
   itemWrap: { paddingHorizontal: screenPadding.horizontal },
   empty: { alignItems: 'center', paddingVertical: 60 },
   actionButton: {
     borderRadius: radius.full,
     paddingHorizontal: screenPadding.horizontal,
-    paddingVertical: 6
+    paddingVertical: 6,
   },
   chip: {
     borderRadius: radius.full,
     paddingHorizontal: screenPadding.horizontal,
-    paddingVertical: 6
+    paddingVertical: 6,
   },
   connCard: {
     flexDirection: 'row',
@@ -376,28 +448,53 @@ const styles = StyleSheet.create({
     paddingHorizontal: screenPadding.horizontal,
     borderBottomWidth: 1,
   },
-  connLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  connAvatar: {
-    width: 48, height: 48, borderRadius: 24,
-    alignItems: 'center', justifyContent: 'center',
+  connLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
-  connRight: { alignItems: 'center', gap: 8, flexDirection: 'row' },
+  copyWrap: {
+    flex: 1,
+  },
+  connRight: {
+    alignItems: 'center',
+    gap: 8,
+    flexDirection: 'row',
+    marginLeft: spacing.sm,
+  },
   unreadBadge: {
     borderRadius: 10,
-    minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center',
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   unreadText: { fontSize: 11, fontWeight: '700' },
   requestCard: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: spacing.md, paddingHorizontal: screenPadding.horizontal, borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: screenPadding.horizontal,
+    borderBottomWidth: 1,
   },
-  reqLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  reqBtns: { flexDirection: 'row', gap: spacing.sm },
+  reqLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  reqBtns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginLeft: spacing.sm,
+  },
   iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-  }
+  },
 });

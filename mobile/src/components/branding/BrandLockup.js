@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { Typography } from '../ui/Typography';
 
 export default function BrandLockup({
@@ -23,13 +23,11 @@ export default function BrandLockup({
 
       <View style={[styles.brandRow, isLarge && styles.brandRowLarge]}>
         <View style={[styles.markShell, isLarge ? styles.markShellLarge : styles.markShellMedium]}>
-          <Typography
-            variant="label"
-            align="center"
-            style={[styles.markLetter, isLarge ? styles.markLetterLarge : styles.markLetterMedium]}
-          >
-            P
-          </Typography>
+          <Image
+            source={require('../../../assets/ball-mark.png')}
+            style={[styles.markImage, isLarge ? styles.markImageLarge : styles.markImageMedium]}
+            resizeMode="contain"
+          />
         </View>
 
         <Typography
@@ -86,40 +84,30 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   markShell: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#020617',
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 6,
+    backgroundColor: 'transparent',
   },
   markShellLarge: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
+    width: 68,
+    height: 68,
   },
   markShellMedium: {
+    width: 56,
+    height: 56,
+  },
+  markImage: {
+    borderRadius: 16,
+  },
+  markImageLarge: {
+    width: 60,
+    height: 60,
+  },
+  markImageMedium: {
     width: 48,
     height: 48,
-  },
-  markLetter: {
-    color: '#B7DA49',
-    letterSpacing: 0.8,
-  },
-  markLetterLarge: {
-    fontSize: 30,
-    lineHeight: 32,
-  },
-  markLetterMedium: {
-    fontSize: 24,
-    lineHeight: 26,
   },
   wordmark: {
     marginTop: 7,

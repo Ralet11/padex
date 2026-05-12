@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Plus } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { ENCLOSURE_LABELS, SURFACE_LABELS } from '../../dashboard/venueCatalog';
 
 export default function CourtsWorkspace({ courtsData, formatDateLabel, onOpenClosure, onRemoveClosure, isSavingClosure }) {
@@ -9,15 +9,6 @@ export default function CourtsWorkspace({ courtsData, formatDateLabel, onOpenClo
 
   return (
     <div className="stack">
-      <section className="hero glass">
-        <div>
-          <p className="eyebrow">Canchas</p>
-          <h2>Infraestructura</h2>
-          <p className="subtle">Cada cancha define el inventario real que impacta agenda, cierres y disponibilidad.</p>
-        </div>
-        <button className="btn-primary-sm" onClick={() => courtsData.openCourtEditor()}><Plus size={16} />Agregar cancha</button>
-      </section>
-
       <section className="stats statsThreeCols">
         <article className="stat glass">
           <span>Inventario total</span>

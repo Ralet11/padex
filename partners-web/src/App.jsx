@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Onboarding from './features/onboarding/Onboarding';
 import Landing from './features/auth/Landing';
@@ -9,17 +9,55 @@ import AgendaPage from './features/operations/routes/AgendaPage';
 import ExcepcionesPage from './features/operations/routes/ExcepcionesPage';
 import CanchasPage from './features/operations/routes/CanchasPage';
 import SedePage from './features/operations/routes/SedePage';
-import { ROUTER_MODE, setAuthToken } from './lib/runtime';
+import {
+  api,
+  clearStoredSession,
+  isJwtExpired,
+  persistSession,
+  readStoredSession,
+  ROUTER_MODE,
+  setAuthToken,
+  setUnauthorizedHandler,
+} from './lib/runtime';
 import { useOperationsVenue } from './features/operations/hooks/useOperationsVenue';
 import './index.css';
 
 const RouterComponent = ROUTER_MODE === 'browser' ? BrowserRouter : HashRouter;
 
+function AuthBootScreen() {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#09090b',
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 999,
+          border: '2px solid rgba(255,255,255,0.12)',
+          borderTopColor: '#C0FF00',
+          animation: 'partner-auth-spin 0.8s linear infinite',
+        }}
+      />
+      <style>{`
+        @keyframes partner-auth-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function App() {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('padex_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState(null);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   const {
     venue,
     venueError,
@@ -27,21 +65,79 @@ function App() {
     refreshVenue,
   } = useOperationsVenue({ user });
 
+  const handleLogout = useCallback(() => {
+    setUser(null);
+    clearStoredSession();
+    setAuthToken(null);
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(handleLogout);
+    return () => setUnauthorizedHandler(null);
+  }, [handleLogout]);
+
   useEffect(() => {
     setAuthToken(user?.token);
   }, [user]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const bootstrapSession = async () => {
+      const savedSession = readStoredSession();
+      if (!savedSession?.token) {
+        if (!ignore) {
+          handleLogout();
+          setIsRestoringSession(false);
+        }
+        return;
+      }
+
+      if (isJwtExpired(savedSession.token)) {
+        if (!ignore) {
+          handleLogout();
+          setIsRestoringSession(false);
+        }
+        return;
+      }
+
+      setAuthToken(savedSession.token);
+
+      try {
+        const response = await api.get('/auth/me');
+        if (ignore) return;
+
+        const sessionData = { ...savedSession, ...response.data.user, token: savedSession.token };
+        setUser(sessionData);
+        persistSession(sessionData);
+      } catch (error) {
+        if (ignore) return;
+
+        const status = error?.response?.status;
+        if (status === 401 || status === 403 || status === 404) {
+          handleLogout();
+        } else {
+          setUser(savedSession);
+        }
+      } finally {
+        if (!ignore) {
+          setIsRestoringSession(false);
+        }
+      }
+    };
+
+    bootstrapSession();
+
+    return () => {
+      ignore = true;
+    };
+  }, [handleLogout]);
 
   const handleLogin = (authData) => {
     const { user: userData, token } = authData;
     const sessionData = { ...userData, token };
     setUser(sessionData);
-    localStorage.setItem('padex_user', JSON.stringify(sessionData));
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('padex_user');
-    setAuthToken(null);
+    persistSession(sessionData);
   };
 
   const handleOnboardingComplete = (venueData) => {
@@ -56,6 +152,7 @@ function App() {
     let target = '/socios';
     if (user.role === 'admin') target = '/admin';
     else if (user.role === 'partner') {
+      if (loadingVenue) return null;
       target = venue ? '/operations/hoy' : '/onboarding';
     }
 
@@ -75,6 +172,14 @@ function App() {
       error: venueError,
     });
   };
+
+  if (isRestoringSession) {
+    return (
+      <RouterComponent>
+        <AuthBootScreen />
+      </RouterComponent>
+    );
+  }
 
   return (
     <RouterComponent>
@@ -113,7 +218,15 @@ function App() {
         
         <Route 
           path="/onboarding" 
-          element={user?.role === 'partner' && !venue ? <Onboarding onComplete={handleOnboardingComplete} /> : <Navigate to="/socios" replace />} 
+          element={
+            user?.role !== 'partner'
+              ? <Navigate to="/socios" replace />
+              : loadingVenue
+              ? <AuthBootScreen />
+              : !venue
+              ? <Onboarding onComplete={handleOnboardingComplete} />
+              : <Navigate to="/operations/hoy" replace />
+          } 
         />
         
         <Route path="/operations" element={user?.role === 'partner' ? <Navigate to="/operations/hoy" replace /> : <Navigate to="/socios" replace />} />

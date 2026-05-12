@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Typography } from '../../components/ui/Typography';
 import AuthShell from '../../components/auth/AuthShell';
+import SocialAuthSection from '../../components/auth/SocialAuthSection';
 
 const CATEGORIES = [
   { value: 'principiante', label: 'Principiante', emoji: '\u{1F331}', elo: '~800' },
@@ -79,8 +80,8 @@ export default function RegisterScreen({ navigation }) {
       title={step === 1 ? 'Tus datos' : 'Perfil de juego'}
       subtitle={
         step === 1
-          ? 'Arma tu acceso y despues terminamos de ajustar tu nivel.'
-          : 'Elegi tu nivel y posicion para entrar con mejores cruces.'
+          ? 'Creamos tu acceso y despues terminamos de ajustar tu nivel.'
+          : 'Defini tu perfil inicial para entrar con mejores cruces.'
       }
       headerContent={
         <View style={styles.heroContent}>
@@ -97,9 +98,24 @@ export default function RegisterScreen({ navigation }) {
               PASO {step} DE 2
             </Typography>
           </View>
-          <Typography variant="body" align="center" style={styles.heroCopy}>
-            Misma familia visual que el login, con alta simple y foco en claridad.
+
+          <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
+          <Typography variant="h2" style={styles.heroTitle}>
+            Empeza tu perfil
           </Typography>
+          <Typography variant="body" style={styles.heroCopy}>
+            Armamos tu acceso y tu nivel inicial para darte mejores cruces desde el primer partido.
+          </Typography>
+
+          <View style={styles.heroFeatureRow}>
+            {['Acceso', 'Nivel', 'Posicion'].map((label) => (
+              <View key={label} style={styles.heroFeatureChip}>
+                <Typography variant="captionMedium" style={styles.heroFeatureText}>
+                  {label}
+                </Typography>
+              </View>
+            ))}
+          </View>
         </View>
       }
       footer={
@@ -135,6 +151,12 @@ export default function RegisterScreen({ navigation }) {
 
       {step === 1 ? (
         <>
+          <SocialAuthSection caption="o crea tu cuenta con" density="compact" />
+
+          <Typography variant="caption" style={[styles.socialHint, { marginTop: spacing.sm, marginBottom: spacing.lg }]}>
+            Despues podes completar tu nivel y posicion desde la app.
+          </Typography>
+
           <Input
             label="Nombre completo"
             value={form.name}
@@ -329,21 +351,51 @@ export default function RegisterScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   heroContent: {
-    alignItems: 'center',
-    paddingTop: 4,
+    width: '100%',
+    paddingTop: 10,
+    paddingHorizontal: 2,
+    alignItems: 'flex-start',
   },
   stepChip: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
   },
-  heroCopy: {
-    maxWidth: 250,
+  heroAccent: {
     marginTop: 14,
+    borderRadius: 999,
+    width: 38,
+    height: 4,
+  },
+  heroTitle: {
+    marginTop: 14,
+    color: '#FFFFFF',
+    letterSpacing: -0.8,
+  },
+  heroCopy: {
+    marginTop: 8,
     color: 'rgba(255,255,255,0.72)',
-    textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 19,
+    maxWidth: 258,
+  },
+  heroFeatureRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  heroFeatureChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  heroFeatureText: {
+    color: 'rgba(255,255,255,0.82)',
   },
   steps: {
     flexDirection: 'row',
@@ -354,6 +406,10 @@ const styles = StyleSheet.create({
   step: {
     width: 38,
     height: 5,
+  },
+  socialHint: {
+    color: '#8D94A0',
+    textAlign: 'center',
   },
   fieldLabel: {
     marginLeft: 2,

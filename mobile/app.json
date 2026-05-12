@@ -5,7 +5,7 @@
     "scheme": "padex",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/padex-app-icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/ball-mark.png",
@@ -19,7 +19,7 @@
       "translucent": false
     },
     "androidNavigationBar": {
-      "backgroundColor": "#0A0E1A",
+      "backgroundColor": "#000000",
       "barStyle": "light-content",
       "enforceContrast": false
     },
@@ -28,13 +28,14 @@
     ],
     "ios": {
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.padex.mobile",
       "buildNumber": "1"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/padex-app-icon.png",
         "backgroundColor": "#07111B"
       },
       "package": "com.padex.mobile",
@@ -47,9 +48,11 @@
           "photosPermission": "Necesitamos acceso a tus fotos para que puedas subir tu foto de perfil."
         }
       ],
+      "expo-apple-authentication",
       "expo-font",
       "expo-secure-store",
-      "expo-asset"
+      "expo-asset",
+      "expo-web-browser"
     ],
     "extra": {
       "apiUrl": "https://apidev.insiderbookings.com",

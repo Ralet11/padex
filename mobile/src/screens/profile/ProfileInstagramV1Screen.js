@@ -442,6 +442,7 @@ function ProfileSocialV2ShellContent({ navigation }) {
                     loading={loadingByBlock.identity || loadingByBlock.ratings}
                     error={heroError}
                     onRetry={() => retryBlock(errorByBlock.identity ? 'identity' : 'ratings')}
+                    onOpenLeaderboard={() => navigation.navigate('Leaderboard')}
                   />
                 </View>
               </AnimatedProfileBlock>
@@ -584,6 +585,7 @@ function ProfileInstagramV1StackContent({ navigation }) {
               loading={loadingByBlock.identity || loadingByBlock.ratings}
               error={heroError}
               onRetry={() => retryBlock(errorByBlock.identity ? 'identity' : 'ratings')}
+              onOpenLeaderboard={() => navigation.navigate('Leaderboard')}
             />
           </AnimatedProfileBlock>
 

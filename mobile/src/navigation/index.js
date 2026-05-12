@@ -25,7 +25,7 @@ import LeaderboardScreen from '../screens/leaderboard/LeaderboardScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-const NAV_BAR_COLOR = '#0A0E1A';
+const NAV_BAR_COLOR = '#000000';
 const AUTH_STATUS_BAR_COLOR = '#050510';
 
 const screenOptions = {

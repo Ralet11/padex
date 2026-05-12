@@ -26,16 +26,23 @@ export default function ExcepcionesPage(props) {
     ]);
   }, [agenda, exceptions, venueState]);
 
+  const handleSelectedDateChange = useCallback((nextDate) => {
+    if (!nextDate) return;
+    exceptions.setSelectedDate(nextDate);
+    agenda.setSelectedAgendaDate(nextDate);
+  }, [agenda, exceptions]);
+
   return (
     <PartnerOperationsLayout
       venue={venueState.venue}
       sectionLabel="Excepciones"
-      title="Excepciones y cierres"
-      description="Overrides diarios y cierres por cancha ya viven en una superficie propia con su propio ciclo de carga, guardado y refetch."
+      title="Excepciones"
+      description={null}
       onLogout={onLogout}
       onRefresh={handleRefresh}
       isRefreshing={venueState.isRefreshingVenue}
       error={exceptions.exceptionsError || venueState.venueError}
+      compactHeader
     >
       <ExceptionsWorkspace
         courts={venueState.courts}
@@ -43,6 +50,7 @@ export default function ExcepcionesPage(props) {
         formatDateLabel={agenda.formatDateLabel}
         onOpenDayOverride={() => exceptions.openDayOverride(agenda.selectedDaySlots)}
         onOpenClosure={exceptions.openCourtClosure}
+        onSelectedDateChange={handleSelectedDateChange}
       />
 
       <DayOverrideModal

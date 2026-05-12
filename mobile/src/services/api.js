@@ -72,13 +72,19 @@ api.interceptors.response.use(
     }
 
     const msg = err.response?.data?.error || err.message || 'Error de red';
-    return Promise.reject(new Error(msg));
+    const wrappedError = new Error(msg);
+    wrappedError.status = err.response?.status || null;
+    wrappedError.code = err.response?.data?.code || null;
+    wrappedError.data = err.response?.data || null;
+    wrappedError.requestId = err.response?.headers?.['x-request-id'] || null;
+    return Promise.reject(wrappedError);
   }
 );
 
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
+  social: (provider, data) => api.post(`/auth/social/${provider}`, data),
   me: () => api.get('/auth/me'),
 };
 
@@ -124,6 +130,7 @@ export const matchesAPI = {
 
 export const paymentsAPI = {
   get: (id) => api.get(`/payments/${id}`),
+  sync: (id, data = {}) => api.post(`/payments/${id}/sync`, data),
   mockApprove: (id) => api.post(`/payments/${id}/mock-approve`),
   mockReject: (id) => api.post(`/payments/${id}/mock-reject`),
 };

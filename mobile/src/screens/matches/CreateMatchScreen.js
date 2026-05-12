@@ -6,6 +6,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { courtsAPI, matchesAPI, resolveAssetUrl } from '../../services/api';
+import {
+  getMatchPaymentOutcomeMessage,
+  isMatchPaymentIntentRequired,
+  startMatchPaymentFlow,
+} from '../../services/matchPayments';
 import { getSocket, joinVenueAvailability, leaveVenueAvailability } from '../../services/socket';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
@@ -463,23 +468,46 @@ export default function CreateMatchScreen({ navigation }) {
     if (!selectedVenue) return Alert.alert('Error', 'Selecciona una sede');
     if (!selectedSlot) return Alert.alert('Error', 'Selecciona un turno');
 
+    const payload = {
+      venue_id: selectedVenue.id,
+      date: selectedDate,
+      time: selectedSlot.time,
+      title: form.title || undefined,
+      description: form.description || undefined,
+      open_category: categoryRule.open_category,
+      min_category_tier: categoryRule.open_category ? undefined : categoryRule.min_category_tier,
+      max_category_tier: categoryRule.open_category ? undefined : categoryRule.max_category_tier,
+    };
+
     setLoading(true);
     try {
-      const res = await matchesAPI.create({
-        venue_id: selectedVenue.id,
-        date: selectedDate,
-        time: selectedSlot.time,
-        title: form.title || undefined,
-        description: form.description || undefined,
-        open_category: categoryRule.open_category,
-        min_category_tier: categoryRule.open_category ? undefined : categoryRule.min_category_tier,
-        max_category_tier: categoryRule.open_category ? undefined : categoryRule.max_category_tier,
-      });
+      let createdMatchId = null;
+      let successMessage = 'Partido creado exitosamente';
 
-      const createdMatchId = res.data.match.id;
+      try {
+        const res = await matchesAPI.create(payload);
+        createdMatchId = res?.data?.match?.id || null;
+      } catch (error) {
+        if (!isMatchPaymentIntentRequired(error)) {
+          throw error;
+        }
+
+        const paymentResult = await startMatchPaymentFlow(() => matchesAPI.createPaymentIntent(payload));
+        if (paymentResult.status !== 'approved') {
+          throw new Error(getMatchPaymentOutcomeMessage(paymentResult.status));
+        }
+
+        createdMatchId = paymentResult.matchId;
+        successMessage = 'Pago confirmado. Partido creado exitosamente';
+      }
+
+      if (!createdMatchId) {
+        throw new Error('No se pudo obtener el partido creado.');
+      }
+
       resetCreateMatchFlow();
 
-      setToastMessage('Partido creado exitosamente');
+      setToastMessage(successMessage);
       setToastVisible(true);
 
       setTimeout(() => {

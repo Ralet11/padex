@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Typography } from '../../components/ui/Typography';
 import AuthShell from '../../components/auth/AuthShell';
+import SocialAuthSection from '../../components/auth/SocialAuthSection';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
@@ -41,28 +42,29 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <AuthShell
+      density="compact"
       title="Ingresar"
-      subtitle="Entra a tu cuenta para ver partidos, mensajes y ranking."
+      subtitle="Tu cuenta para jugar, competir y subir en el ranking."
       headerContent={
         <View style={styles.heroContent}>
-          <View
-            style={[
-              styles.heroPill,
-              {
-                borderColor: `${colors.accent}36`,
-                backgroundColor: `${colors.accent}18`,
-              },
-            ]}
-          >
-            <Typography variant="captionMedium" style={[styles.heroPillText, { color: colors.accent }]}>
-              PADEX
-            </Typography>
-          </View>
+          <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
 
-          <View style={styles.heroLogoTile}>
-            <Typography variant="h2" align="center" style={[styles.heroLogoText, { color: colors.accent }]}>
-              P
-            </Typography>
+          <Typography variant="h1" style={styles.heroTitle}>
+            Padex
+          </Typography>
+
+          <Typography variant="body" style={styles.heroSubtitle}>
+            Entra a tus partidos, segui la liga y movete en el ranking.
+          </Typography>
+
+          <View style={styles.heroFeatureRow}>
+            {['Partidos', 'Ranking', 'Mensajes'].map((label) => (
+              <View key={label} style={styles.heroFeatureChip}>
+                <Typography variant="captionMedium" style={styles.heroFeatureText}>
+                  {label}
+                </Typography>
+              </View>
+            ))}
           </View>
         </View>
       }
@@ -85,6 +87,7 @@ export default function LoginScreen({ navigation }) {
         label="Email"
         value={email}
         onChangeText={setEmail}
+        style={styles.fieldWrap}
         placeholder="tu@email.com"
         keyboardType="email-address"
         autoCapitalize="none"
@@ -103,6 +106,7 @@ export default function LoginScreen({ navigation }) {
         label="Contrasena"
         value={password}
         onChangeText={setPassword}
+        style={styles.fieldWrap}
         placeholder="********"
         secureTextEntry
         autoCorrect={false}
@@ -124,62 +128,72 @@ export default function LoginScreen({ navigation }) {
         size="lg"
         textColor="#FFFFFF"
         loadingColor="#FFFFFF"
-        style={[styles.submitBtn, { marginTop: spacing.md }]}
+        style={[styles.submitBtn, { marginTop: spacing.sm }]}
         textStyle={styles.submitText}
       />
+
+      <SocialAuthSection density="compact" />
     </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
   heroContent: {
-    alignItems: 'center',
-    paddingTop: 4,
+    width: '100%',
+    paddingTop: 10,
+    paddingHorizontal: 2,
+    alignItems: 'flex-start',
   },
-  heroPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  heroAccent: {
+    width: 38,
+    height: 4,
     borderRadius: 999,
+  },
+  heroTitle: {
+    marginTop: 14,
+    color: '#FFFFFF',
+    letterSpacing: -1.2,
+  },
+  heroSubtitle: {
+    marginTop: 8,
+    maxWidth: 250,
+    color: 'rgba(255,255,255,0.70)',
+    lineHeight: 19,
+  },
+  heroFeatureRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroFeatureChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  heroPillText: {
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  heroLogoTile: {
-    width: 74,
-    height: 74,
-    borderRadius: 24,
-    marginTop: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#050510',
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
-  },
-  heroLogoText: {
-    fontSize: 32,
-    lineHeight: 34,
-    letterSpacing: -0.8,
+  heroFeatureText: {
+    color: 'rgba(255,255,255,0.84)',
   },
   fieldLabel: {
     marginLeft: 2,
-    marginBottom: 8,
-    fontSize: 12,
-    lineHeight: 16,
+    marginBottom: 6,
+    fontSize: 11,
+    lineHeight: 14,
     letterSpacing: 0,
     textTransform: 'none',
     color: '#3F4652',
   },
+  fieldWrap: {
+    marginBottom: 10,
+  },
   fieldContainer: {
-    height: 56,
+    height: 50,
     borderWidth: 1,
     borderColor: '#EEF0F4',
-    borderRadius: 16,
+    borderRadius: 14,
     backgroundColor: '#FBFBFD',
     shadowColor: '#111827',
     shadowOpacity: 0.04,
@@ -188,16 +202,16 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   fieldInput: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#16181D',
   },
   submitBtn: {
-    height: 54,
+    height: 48,
     borderRadius: 14,
     backgroundColor: '#111214',
   },
   submitText: {
-    fontSize: 15,
+    fontSize: 14,
     letterSpacing: 0.1,
     color: '#FFFFFF',
   },

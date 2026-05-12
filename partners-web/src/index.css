@@ -312,7 +312,7 @@ input {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  background: radial-gradient(circle at top right, rgba(192, 255, 0, .05), transparent 25%), #09090b;
+  background: #09090b;
 }
 
 .operationsShell.railCollapsed {
@@ -322,17 +322,37 @@ input {
 .operationsRail {
   position: sticky;
   top: 0;
+  z-index: 20;
+  width: 100%;
   height: 100vh;
-  padding: 24px 18px;
-  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  border-right: 1px solid rgba(255, 255, 255, .06);
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  background: linear-gradient(180deg, rgba(18, 18, 20, .92), rgba(10, 10, 12, .98));
+  gap: 14px;
+  overflow: hidden;
+  background: rgba(10, 11, 13, .98);
+  backdrop-filter: none;
+  box-shadow: none;
+  will-change: width;
+  transition: width .18s ease, padding .18s ease, border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
 }
 
 .operationsRail.collapsed {
-  padding: 24px 12px;
+  width: 92px;
+  padding: 20px 12px;
+}
+
+.operationsShell.railCollapsed .operationsRail:focus-within {
+  width: 280px;
+  box-shadow: 16px 0 32px rgba(0, 0, 0, .22);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .operationsShell.railCollapsed .operationsRail:hover {
+    width: 280px;
+    box-shadow: 16px 0 32px rgba(0, 0, 0, .22);
+  }
 }
 
 .operationsRailTop {
@@ -345,11 +365,41 @@ input {
 .operationsBrand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  font-size: .95rem;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 6px 4px 2px;
+  font-size: .82rem;
   font-weight: 800;
-  letter-spacing: .05em;
+  letter-spacing: .12em;
+  color: #f8fafc;
+}
+
+.operationsBrandMark {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(192, 255, 0, .08);
+  border: 1px solid rgba(192, 255, 0, .16);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.operationsBrandText,
+.operationsVenueCopy,
+.operationsNavText {
+  opacity: 1;
+  transform: translateX(0);
+  max-width: 180px;
+  overflow: hidden;
+  transition: opacity .14s ease, transform .14s ease, max-width .18s ease;
 }
 
 .operationsRail.collapsed .operationsBrand {
@@ -359,70 +409,233 @@ input {
 
 .operationsRailToggle {
   flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, .08);
+  background: transparent;
+  color: var(--muted-foreground);
+  box-shadow: none;
+}
+
+.operationsRailToggle:hover {
+  background: rgba(255, 255, 255, .03);
+  border-color: rgba(255, 255, 255, .12);
+  color: #f8fafc;
 }
 
 .operationsVenue {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 14px;
-  border-radius: 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  min-height: 58px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, .06);
+  background: rgba(255, 255, 255, .02);
+  backdrop-filter: none;
 }
 
 .operationsVenue.compact {
-  align-items: center;
   justify-content: center;
-  min-height: 84px;
-  padding: 12px;
+  padding-inline: 0;
 }
 
-.operationsVenue strong {
-  font-size: 1rem;
+.operationsVenueMonogram {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: .82rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #f8fafc;
+  background: rgba(192, 255, 0, .1);
+  border: 1px solid rgba(192, 255, 0, .18);
+}
+
+.operationsVenueCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.operationsVenueCopy strong {
+  font-size: .92rem;
+  font-weight: 800;
   color: #f5f7fb;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
-.operationsVenue span {
-  font-size: .9rem;
-  line-height: 1.45;
-  color: var(--muted-foreground);
+.operationsVenueCopy span {
+  font-size: .76rem;
+  line-height: 1.35;
+  color: rgba(161, 161, 170, .9);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 .operationsNav {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
 }
 
 .operationsNavLink,
 .operationsRailButton {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 46px;
-  padding: 12px 14px;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
   border-radius: 14px;
+  font-size: .88rem;
   font-weight: 700;
   color: var(--muted-foreground);
-  transition: background .18s ease, color .18s ease, border-color .18s ease;
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  transition: background-color .14s ease, color .14s ease, border-color .14s ease;
+}
+
+.operationsNavLink::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  transform: translateY(-50%) scaleY(.4);
+  transition: opacity .14s ease, transform .14s ease;
+}
+
+.operationsNavIcon {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, .08);
+  color: currentColor;
+  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+}
+
+.operationsNavText {
+  white-space: nowrap;
 }
 
 .operationsRail.collapsed .operationsNavLink,
 .operationsRail.collapsed .operationsRailButton {
   justify-content: center;
-  padding-inline: 0;
+  gap: 0;
+  min-height: 48px;
+  padding: 8px;
+  border-radius: 14px;
+}
+
+.operationsRail.collapsed .operationsNavLink::after {
+  left: 5px;
+}
+
+.operationsRail.collapsed .operationsBrandText,
+.operationsRail.collapsed .operationsVenueCopy,
+.operationsRail.collapsed .operationsNavText {
+  opacity: 0;
+  transform: translateX(-8px);
+  max-width: 0;
+  pointer-events: none;
+}
+
+.operationsShell.railCollapsed .operationsRail:focus-within .operationsBrand {
+  justify-content: flex-start;
+  padding: 4px 6px 4px 2px;
+}
+
+.operationsShell.railCollapsed .operationsRail:focus-within .operationsBrandText,
+.operationsShell.railCollapsed .operationsRail:focus-within .operationsVenueCopy,
+.operationsShell.railCollapsed .operationsRail:focus-within .operationsNavText {
+  opacity: 1;
+  transform: translateX(0);
+  max-width: 180px;
+  pointer-events: auto;
+}
+
+.operationsShell.railCollapsed .operationsRail:focus-within .operationsVenue,
+.operationsShell.railCollapsed .operationsRail:focus-within .operationsNavLink,
+.operationsShell.railCollapsed .operationsRail:focus-within .operationsRailButton {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-inline: 10px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .operationsShell.railCollapsed .operationsRail:hover .operationsBrand {
+    justify-content: flex-start;
+    padding: 4px 6px 4px 2px;
+  }
+
+  .operationsShell.railCollapsed .operationsRail:hover .operationsBrandText,
+  .operationsShell.railCollapsed .operationsRail:hover .operationsVenueCopy,
+  .operationsShell.railCollapsed .operationsRail:hover .operationsNavText {
+    opacity: 1;
+    transform: translateX(0);
+    max-width: 180px;
+    pointer-events: auto;
+  }
+
+  .operationsShell.railCollapsed .operationsRail:hover .operationsVenue,
+  .operationsShell.railCollapsed .operationsRail:hover .operationsNavLink,
+  .operationsShell.railCollapsed .operationsRail:hover .operationsRailButton {
+    justify-content: flex-start;
+    gap: 10px;
+    padding-inline: 10px;
+  }
 }
 
 .operationsNavLink.active {
-  background: rgba(192, 255, 0, .12);
+  background: rgba(192, 255, 0, .08);
+  border-color: rgba(192, 255, 0, .16);
+  color: #f8fafc;
+}
+
+.operationsNavLink.active::after {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
+}
+
+.operationsNavLink.active .operationsNavIcon {
   color: var(--primary);
-  box-shadow: inset 0 0 0 1px rgba(192, 255, 0, .14);
+  background: rgba(192, 255, 0, .08);
+  border-color: rgba(192, 255, 0, .18);
 }
 
 .operationsNavLink:hover,
 .operationsRailButton:hover {
-  background: rgba(255, 255, 255, .04);
+  background: rgba(255, 255, 255, .03);
+  border-color: rgba(255, 255, 255, .08);
+  color: #fff;
+}
+
+.operationsNavLink:hover .operationsNavIcon,
+.operationsRailButton:hover .operationsNavIcon {
+  background: rgba(255, 255, 255, .03);
+  border-color: rgba(255, 255, 255, .1);
   color: #fff;
 }
 
@@ -430,6 +643,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-top: 6px;
 }
 
 .operationsRailButton {
@@ -437,8 +651,9 @@ input {
   width: 100%;
 }
 
-.operationsRailButton.iconOnly {
-  padding-inline: 0;
+.operationsRailButton:disabled {
+  opacity: .72;
+  cursor: wait;
 }
 
 .operationsMain {
@@ -1008,8 +1223,10 @@ h3 {
 }
 
 .agendaLegendSwatch.free {
-  background: rgba(255, 255, 255, .05);
-  border-color: rgba(192, 255, 0, .36);
+  background:
+    radial-gradient(circle at top left, rgba(192, 255, 0, .22), transparent 58%),
+    linear-gradient(180deg, rgba(28, 36, 21, .96), rgba(18, 24, 15, .92));
+  border-color: rgba(192, 255, 0, .42);
 }
 
 .agendaLegendSwatch.busy {
@@ -1194,6 +1411,7 @@ h3 {
   min-height: 58px;
   min-width: 0;
   border-radius: 14px;
+  border: 1px solid transparent;
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -1203,6 +1421,11 @@ h3 {
   text-align: left;
   position: relative;
   z-index: 1;
+  overflow: hidden;
+  box-shadow:
+    0 10px 22px rgba(3, 6, 12, .28),
+    inset 0 1px 0 rgba(255, 255, 255, .05);
+  backdrop-filter: blur(10px);
 }
 
 .agendaSlotBlock .agendaSlotTime {
@@ -1223,24 +1446,43 @@ h3 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: rgba(226, 232, 240, .8);
 }
 
 .agendaSlotBlock.free {
-  background: rgba(255, 255, 255, .045);
-  border: 1px dashed rgba(192, 255, 0, .34);
+  background:
+    radial-gradient(circle at top left, rgba(192, 255, 0, .18), transparent 56%),
+    linear-gradient(180deg, rgba(31, 40, 23, .96), rgba(19, 26, 16, .94));
+  border: 1px dashed rgba(192, 255, 0, .38);
   color: #f8fafc;
+  box-shadow:
+    0 12px 22px rgba(6, 10, 4, .28),
+    inset 0 1px 0 rgba(255, 255, 255, .05),
+    inset 0 0 0 1px rgba(192, 255, 0, .06);
 }
 
 .agendaSlotBlock.free:hover {
-  background: rgba(192, 255, 0, .09);
+  background:
+    radial-gradient(circle at top left, rgba(192, 255, 0, .25), transparent 58%),
+    linear-gradient(180deg, rgba(40, 51, 29, .98), rgba(24, 32, 18, .95));
+  border-color: rgba(192, 255, 0, .54);
   border-style: solid;
+  box-shadow:
+    0 16px 28px rgba(6, 10, 4, .36),
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    inset 0 0 0 1px rgba(192, 255, 0, .12);
   transform: translateY(-1px);
 }
 
 .agendaSlotBlock.busy {
-  background: linear-gradient(180deg, rgba(98, 115, 136, .94), rgba(79, 92, 108, .88));
+  background:
+    radial-gradient(circle at top left, rgba(226, 232, 240, .12), transparent 50%),
+    linear-gradient(180deg, rgba(98, 115, 136, .95), rgba(79, 92, 108, .9));
   border: 1px solid rgba(148, 163, 184, .26);
   color: #f8fafc;
+  box-shadow:
+    0 12px 22px rgba(6, 10, 16, .3),
+    inset 0 1px 0 rgba(255, 255, 255, .05);
 }
 
 .agendaSlotBlock.busy.releasable {
@@ -2010,10 +2252,10 @@ h3 {
   top: 0;
 }
 
-/* Active nav link: non-color cue via left border indicator */
-.operationsNavLink.active {
-  border-left: 3px solid var(--primary);
-  padding-left: 11px;
+/* Active nav link: non-color cue via left indicator pill */
+.operationsNavLink.active::after {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
 }
 
 /* Segmented control: active state non-color cue */

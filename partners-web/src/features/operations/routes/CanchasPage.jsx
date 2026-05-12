@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { Plus } from 'lucide-react';
 import PartnerOperationsLayout from '../PartnerOperationsLayout';
 import CourtClosureModal from '../components/CourtClosureModal';
 import CourtEditorModal from '../components/CourtEditorModal';
@@ -37,12 +38,19 @@ export default function CanchasPage(props) {
     <PartnerOperationsLayout
       venue={venueState.venue}
       sectionLabel="Canchas"
-      title="Inventario operativo"
-      description="El roster de canchas ya no depende del tab shell viejo: usa datos compartidos de slots, cierres y metadata de inventario."
+      title="Configuracion de canchas"
+      description={null}
       onLogout={onLogout}
       onRefresh={handleRefresh}
       isRefreshing={venueState.isRefreshingVenue}
       error={agenda.slotsError || exceptions.exceptionsError || venueState.venueError}
+      actions={(
+        <button className="btn-primary-sm" onClick={() => courtsData.openCourtEditor()}>
+          <Plus size={16} />
+          Agregar cancha
+        </button>
+      )}
+      compactHeader
     >
       <CourtsWorkspace
         courtsData={courtsData}

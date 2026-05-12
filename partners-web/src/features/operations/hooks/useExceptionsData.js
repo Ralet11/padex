@@ -118,6 +118,10 @@ export function useExceptionsData({ venueId, courts, viewRange, planningTo }) {
     () => closureSummaries.filter((closure) => closure.start_date <= todayStr() && closure.end_date >= todayStr()),
     [closureSummaries],
   );
+  const selectedDateClosures = useMemo(
+    () => closureSummaries.filter((closure) => closure.start_date <= selectedDate && closure.end_date >= selectedDate),
+    [closureSummaries, selectedDate],
+  );
 
   const openDayOverride = useCallback((seedSlots = []) => {
     setDayOverrideForm({
@@ -181,12 +185,14 @@ export function useExceptionsData({ venueId, courts, viewRange, planningTo }) {
   }, [refreshExceptions, selectedDate]);
 
   const openCourtClosure = useCallback((court) => {
-    const activeOrLatestClosure = (closuresByCourt[court.id] || []).find((closure) => closure.end_date >= todayStr()) || null;
+    const activeClosureForSelectedDate = (closuresByCourt[court.id] || []).find((closure) => (
+      closure.start_date <= selectedDate && closure.end_date >= selectedDate
+    )) || null;
     setSelectedClosureCourt(court);
     setCourtClosureForm({
-      start_date: activeOrLatestClosure?.start_date || selectedDate || todayStr(),
-      end_date: activeOrLatestClosure?.end_date || selectedDate || todayStr(),
-      reason: activeOrLatestClosure?.reason || '',
+      start_date: activeClosureForSelectedDate?.start_date || selectedDate || todayStr(),
+      end_date: activeClosureForSelectedDate?.end_date || selectedDate || todayStr(),
+      reason: activeClosureForSelectedDate?.reason || '',
     });
     setShowCourtClosureModal(true);
   }, [closuresByCourt, selectedDate]);
@@ -247,6 +253,7 @@ export function useExceptionsData({ venueId, courts, viewRange, planningTo }) {
     exceptionSummaries,
     closureSummaries,
     urgentClosures,
+    selectedDateClosures,
     refreshExceptions,
     openDayOverride,
     addDayOverrideWindow,

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { Avatar, InlineError, Skeleton } from '../../../components/ui';
 import ProfileSectionCard from '../../../components/profile/ProfileSectionCard';
 import { useTheme } from '../../../theme/ThemeContext';
@@ -11,7 +12,7 @@ const HERO_STATS = [
   { key: 'matches', label: 'Partidos' },
 ];
 
-export default function ProfileHeroSection({ hero, loading, error, onRetry }) {
+export default function ProfileHeroSection({ hero, loading, error, onRetry, onOpenLeaderboard }) {
   const { colors, spacing, radius } = useTheme();
   const stats = Array.isArray(hero?.stats) ? hero.stats : [];
   const isV2Hero = stats.length > 0;
@@ -115,6 +116,20 @@ export default function ProfileHeroSection({ hero, loading, error, onRetry }) {
           })}
         </View>
       )}
+
+      {onOpenLeaderboard ? (
+        <TouchableOpacity
+          onPress={onOpenLeaderboard}
+          style={[styles.rankButton, { borderColor: colors.borderLight, borderRadius: radius.full, backgroundColor: colors.surfaceHighlight }]}
+          accessibilityRole="button"
+          accessibilityLabel="Ver tabla de clasificacion"
+          accessibilityHint="Abre la tabla de posiciones competitiva"
+        >
+          <Feather name="award" size={16} color={hero?.rankColor || colors.text.primary} />
+          <Text style={[typography.bodyBold, { color: colors.text.primary }]}>Ver clasificacion</Text>
+          <Feather name="arrow-right" size={16} color={colors.text.secondary} />
+        </TouchableOpacity>
+      ) : null}
     </ProfileSectionCard>
   );
 }
@@ -169,6 +184,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderWidth: 1,
     overflow: 'hidden',
+  },
+  rankButton: {
+    minHeight: 46,
+    marginTop: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   statBoxV2: {
     flex: 1,

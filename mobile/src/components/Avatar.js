@@ -1,7 +1,7 @@
 // TODO: DEPRECATED — migrate to components/ui/Avatar.js
 // This legacy Avatar uses static theme import and is not theme-aware.
 // Screens should import Avatar from '../../components/ui' instead.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { resolveAssetUrl } from '../services/api';
 import { colors } from '../theme';
@@ -16,18 +16,25 @@ export default function Avatar({ uri, name, size = 44, category, showBadge = fal
   const tier = findTierByName(category);
   const rank = RANK_CONFIG[tier] || RANK_CONFIG[7];
   const bg = category ? rank.starColor : colors.primary;
+  const [imageFailed, setImageFailed] = useState(false);
   const initials = name
     ? name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
     : '?';
 
   const avatarUri = resolveAssetUrl(uri);
+  const shouldRenderImage = Boolean(avatarUri) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [avatarUri]);
 
   return (
     <View style={[styles.wrapper, { width: size, height: size }, style]}>
-      {avatarUri ? (
+      {shouldRenderImage ? (
         <Image
           source={{ uri: avatarUri }}
           style={[styles.img, { borderRadius: size / 2 }]}
+          onError={() => setImageFailed(true)}
         />
       ) : (
         <View style={[styles.placeholder, { backgroundColor: bg, borderRadius: size / 2, width: size, height: size }]}>

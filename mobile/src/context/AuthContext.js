@@ -59,6 +59,18 @@ export function AuthProvider({ children }) {
     return u;
   }
 
+  async function loginWithProvider(provider, payload) {
+    console.log('[auth] social login start', { provider });
+    const res = await authAPI.social(provider, payload);
+    const { token: t, user: u } = res.data;
+    await AsyncStorage.setItem('token', t);
+    setToken(t);
+    setUser(u);
+    initSocket(t);
+    console.log('[auth] social login success', { provider, userId: u.id, role: u.role });
+    return u;
+  }
+
   async function logout() {
     await AsyncStorage.removeItem('token');
     disconnectSocket();
@@ -71,7 +83,9 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{ user, token, loading, login, register, loginWithProvider, logout, updateUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

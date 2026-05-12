@@ -48,6 +48,17 @@ function formatShortText(value) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function getLocationLabel(match) {
+  const venueName = String(match?.venue_name || '').trim();
+  const courtName = String(match?.court_name || '').trim();
+
+  if (venueName && courtName) {
+    return `${venueName} · ${courtName}`;
+  }
+
+  return venueName || courtName || 'Sede a confirmar';
+}
+
 export default function MatchCard({ match, onPress, compact = false }) {
   const { colors, isDark } = useTheme();
   const matchState = getMatchState(match);
@@ -68,6 +79,7 @@ export default function MatchCard({ match, onPress, compact = false }) {
   const weekdayLabel = formatShortText(date.toLocaleDateString('es-AR', { weekday: 'short' }));
   const dateLabel = formatShortText(date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }));
   const timeStr = match.time?.slice(0, 5) || '--:--';
+  const locationLabel = getLocationLabel(match);
 
   const cardStyle = [
     styles.card,
@@ -119,7 +131,7 @@ export default function MatchCard({ match, onPress, compact = false }) {
           <View style={[styles.locationRow, compact && styles.locationRowCompact]}>
             <Feather name="map-pin" size={14} color={colors.text.tertiary} />
             <Text style={[typography.body, { color: colors.text.secondary, flex: 1 }]} numberOfLines={1}>
-              {match.court_name || 'Cancha a confirmar'}
+              {locationLabel}
             </Text>
           </View>
 
