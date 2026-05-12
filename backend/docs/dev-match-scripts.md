@@ -14,10 +14,14 @@ Estos scripts sirven para limpiar partidos de desarrollo y recrear una tanda nue
   Asegura venues demo, players demo y completa partidos demo abiertos hasta el target por default.
 - `npm run dev:matches:create -- --count 12`
   Ajusta el total objetivo de partidos demo abiertos.
+- `npm run dev:matches:create -- --count 12 --payment-required true`
+  Genera partidos demo aptos para probar `join-payment-intent`.
 - `npm run dev:matches:reset -- --dry-run`
   Simula limpieza y recreacion en un solo paso.
 - `npm run dev:matches:reset -- --yes`
   Limpia partidos no completados y recrea la tanda demo.
+- `npm run dev:matches:reset -- --scope demo --count 12 --payment-required true --yes`
+  Limpia demo matches y recrea una tanda nueva con pagos habilitados.
 
 ## Alcances de borrado
 
@@ -44,3 +48,4 @@ Despues intenta liberar el `slot` asociado si quedo retenido por la app.
 - `clear` y `reset` exigen `--yes` para correr de verdad. Sin eso, usa `--dry-run`.
 - Los scripts se frenan si `NODE_ENV=production`.
 - No borran partidos completados a proposito, para no desalinear standings, reputacion e historial competitivo.
+- `--payment-required true` sirve para probar el pago al unirse a un partido. No reemplaza el flujo real de pago del creador al crear el partido desde la app.

@@ -11,6 +11,7 @@ const {
 } = require('./seedDemoData');
 const {
   parseArgs,
+  parseBoolean,
   parseInteger,
   printJson,
 } = require('./utils/cliArgs');
@@ -22,6 +23,7 @@ Uso:
 
 Opciones:
   --count <numero>                Total objetivo de partidos demo abiertos. Default: ${TARGET_OPEN_MATCHES}
+  --payment-required <true|false> Crear partidos demo con pagos habilitados. Default: false
   --help                          Muestra esta ayuda
 `);
 }
@@ -44,11 +46,13 @@ function assertSafeExecution() {
 
 async function createDevMatches(options = {}) {
   const targetOpenMatches = resolveTargetCount(options.count);
+  const paymentRequired = parseBoolean(options.paymentRequired, false);
 
   const ensuredVenues = await ensureDemoVenues({ transaction: options.transaction });
   const players = await ensureDemoPlayers({ transaction: options.transaction });
   const matchResult = await ensureDemoMatches(players, ensuredVenues, {
     targetOpenMatches,
+    paymentRequired,
     transaction: options.transaction,
   });
 
@@ -80,6 +84,7 @@ async function createDevMatches(options = {}) {
 
   return {
     target_open_matches: targetOpenMatches,
+    payment_required: paymentRequired,
     ensured_demo_venues: ensuredVenues.length,
     ensured_demo_players: players.length,
     created_open_demo_matches: matchResult.created,
@@ -102,6 +107,7 @@ async function main() {
     await sequelize.authenticate();
     const result = await createDevMatches({
       count: args.count,
+      paymentRequired: args['payment-required'],
     });
     printJson(result);
   } catch (error) {

@@ -13,6 +13,8 @@ const {
 } = require('../models');
 const { ensureSlotsForRange, dateToStr } = require('../services/availability');
 const { nameFromTier } = require('../services/elo');
+const { SLOT_STATES } = require('../constants/slotStates');
+const { updateSlotLifecycle } = require('../services/competitive/matchLifecycle');
 
 const TARGET_TOTAL_VENUES = 5;
 const TARGET_DEMO_PLAYERS = 25;
@@ -369,6 +371,14 @@ function resolveTargetOpenMatches(value) {
   return TARGET_OPEN_MATCHES;
 }
 
+function resolvePaymentRequired(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'undefined' || value === null || value === '') return false;
+
+  const normalized = String(value).trim().toLowerCase();
+  return ['1', 'true', 'yes', 'y', 'on'].includes(normalized);
+}
+
 function buildCategoryRuleForMatch(index, creatorTier) {
   if (index % 4 === 0) {
     return {
@@ -497,7 +507,8 @@ async function getPlayableVenueIds(preferredVenueIds = [], options = {}) {
 async function ensureDemoMatches(players, ensuredVenues, options = {}) {
   const transaction = options.transaction;
   const targetOpenMatches = resolveTargetOpenMatches(options.targetOpenMatches);
-  const openDemoMatchCount = await Match.count({
+  const paymentRequired = resolvePaymentRequired(options.paymentRequired);
+  const totalOpenDemoMatchCount = await Match.count({
     where: {
       status: 'open',
       title: {
@@ -506,13 +517,25 @@ async function ensureDemoMatches(players, ensuredVenues, options = {}) {
     },
     transaction,
   });
+  const matchingModeOpenDemoMatchCount = await Match.count({
+    where: {
+      status: 'open',
+      title: {
+        [Op.iLike]: `${DEMO_MATCH_PREFIX}%`,
+      },
+      payment_required: paymentRequired,
+    },
+    transaction,
+  });
 
-  const missingMatches = Math.max(0, targetOpenMatches - openDemoMatchCount);
+  const missingMatches = Math.max(0, targetOpenMatches - matchingModeOpenDemoMatchCount);
   if (missingMatches === 0) {
     return {
       created: 0,
       target_open_matches: targetOpenMatches,
-      existing_open_matches: openDemoMatchCount,
+      existing_open_matches: matchingModeOpenDemoMatchCount,
+      existing_total_open_matches: totalOpenDemoMatchCount,
+      payment_required: paymentRequired,
     };
   }
 
@@ -529,7 +552,7 @@ async function ensureDemoMatches(players, ensuredVenues, options = {}) {
     const eligiblePlayers = shuffle(pickEligiblePlayers(players, categoryRule, creator.id));
     const extraPlayersCount = index % 3;
     const extraPlayers = eligiblePlayers.slice(0, extraPlayersCount);
-    const matchNumber = String(openDemoMatchCount + index + 1).padStart(2, '0');
+    const matchNumber = String(totalOpenDemoMatchCount + index + 1).padStart(2, '0');
 
     const localTransaction = transaction || await sequelize.transaction();
     try {
@@ -544,6 +567,7 @@ async function ensureDemoMatches(players, ensuredVenues, options = {}) {
         open_category: categoryRule.open_category,
         min_category_tier: categoryRule.min_category_tier,
         max_category_tier: categoryRule.max_category_tier,
+        payment_required: paymentRequired,
       }, { transaction: localTransaction });
 
       await MatchPlayer.create({
@@ -556,6 +580,10 @@ async function ensureDemoMatches(players, ensuredVenues, options = {}) {
           match_id: match.id,
           user_id: player.id,
         }, { transaction: localTransaction });
+      }
+
+      if (paymentRequired && [SLOT_STATES.AVAILABLE, SLOT_STATES.RELEASED].includes(slot.state)) {
+        await updateSlotLifecycle(slot, SLOT_STATES.HELD, { transaction: localTransaction });
       }
 
       if (!transaction) {
@@ -573,7 +601,9 @@ async function ensureDemoMatches(players, ensuredVenues, options = {}) {
   return {
     created: createdMatches.length,
     target_open_matches: targetOpenMatches,
-    existing_open_matches: openDemoMatchCount,
+    existing_open_matches: matchingModeOpenDemoMatchCount,
+    existing_total_open_matches: totalOpenDemoMatchCount,
+    payment_required: paymentRequired,
   };
 }
 

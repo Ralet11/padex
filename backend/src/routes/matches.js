@@ -547,14 +547,14 @@ router.post('/', auth, async (req, res) => {
 // POST /api/matches/:id/join - unirse a partido
 router.post('/:id/join', auth, async (req, res) => {
   try {
-    if (MATCH_PAYMENT_CONFIG.enabled) {
+    const match = await getMatchWithDetails(req.params.id);
+
+    if (MATCH_PAYMENT_CONFIG.enabled && match?.payment_required) {
       return res.status(409).json({
         error: 'El flujo de pagos esta habilitado. Usa /api/matches/:id/join-payment-intent.',
         code: 'PAYMENT_INTENT_REQUIRED',
       });
     }
-
-    const match = await getMatchWithDetails(req.params.id);
 
     if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
     if (match.state !== MATCH_STATES.OPEN) return res.status(400).json({ error: 'El partido no está disponible' });
