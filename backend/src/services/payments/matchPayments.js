@@ -58,29 +58,40 @@ function normalizeMoneyAmount(value) {
   return Math.round(amount * 100) / 100;
 }
 
-function resolveEffectiveSlotPrice(slot) {
-  const slotPrice = normalizeMoneyAmount(slot?.price);
-  if (slotPrice > 0) return slotPrice;
+async function loadVenueFallbackPriceForSlot(slot, transaction) {
+  if (!slot?.court_id) return 0;
 
-  const venuePrice = normalizeMoneyAmount(slot?.Court?.Venue?.price_per_slot);
-  if (venuePrice > 0) return venuePrice;
+  const court = await Court.findByPk(slot.court_id, {
+    attributes: ['id', 'venue_id'],
+    transaction,
+  });
+  if (!court?.venue_id) return 0;
 
-  return slotPrice;
+  const venue = await Venue.findByPk(court.venue_id, {
+    attributes: ['id', 'price_per_slot'],
+    transaction,
+  });
+
+  return normalizeMoneyAmount(venue?.price_per_slot);
 }
 
 async function ensureChargeableSlotPrice(slot, transaction) {
-  const effectivePrice = resolveEffectiveSlotPrice(slot);
-  if (!(effectivePrice > 0)) {
+  const currentSlotPrice = normalizeMoneyAmount(slot?.price);
+  if (currentSlotPrice > 0) {
+    return currentSlotPrice;
+  }
+
+  const fallbackVenuePrice = await loadVenueFallbackPriceForSlot(slot, transaction);
+  if (!(fallbackVenuePrice > 0)) {
     throw createPublicError('La sede no tiene un precio configurado para este turno', 400, 'INVALID_SLOT_PRICE');
   }
 
-  const currentSlotPrice = normalizeMoneyAmount(slot?.price);
-  if (slot && currentSlotPrice <= 0 && currentSlotPrice !== effectivePrice) {
-    await slot.update({ price: effectivePrice }, { transaction });
-    slot.price = effectivePrice;
+  if (slot && currentSlotPrice !== fallbackVenuePrice) {
+    await slot.update({ price: fallbackVenuePrice }, { transaction });
+    slot.price = fallbackVenuePrice;
   }
 
-  return effectivePrice;
+  return fallbackVenuePrice;
 }
 
 function isTerminalStatus(status) {
@@ -273,10 +284,6 @@ async function createCreatorPaymentIntent({ requester, payload }) {
     const resolvedSlotId = await resolveSlotId(payload, transaction);
     const slot = await Slot.findOne({
       where: { id: resolvedSlotId, is_available: true },
-      include: [{
-        model: Court,
-        include: [{ model: Venue, attributes: ['id', 'price_per_slot'] }],
-      }],
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
@@ -370,14 +377,7 @@ async function createJoinPaymentIntent({ requester, matchId }) {
   const payment = await sequelize.transaction(async (transaction) => {
     const match = await Match.findByPk(matchId, {
       include: [
-        {
-          model: Slot,
-          as: 'Slot',
-          include: [{
-            model: Court,
-            include: [{ model: Venue, attributes: ['id', 'price_per_slot'] }],
-          }],
-        },
+        { model: Slot, as: 'Slot' },
         { model: MatchPlayer, as: 'Players' },
       ],
       transaction,
