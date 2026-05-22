@@ -13,11 +13,13 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { Avatar, Button, Skeleton, InlineError } from '../../components/ui';
+import VenueMapPreview from '../../components/VenueMapPreview';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { getRankByTier } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
 import { getCompetitiveTier, getMatchState, MATCH_STATES } from '../../utils/domain';
+import { getGoogleMapsSearchUrl } from '../../utils/maps';
 
 function getStatusConfig(colors) {
   return {
@@ -36,13 +38,12 @@ function getPlayerPrice(totalCourtPrice, orderIndex) {
 }
 
 async function openVenueMap(match) {
-  const query = [match?.venue_name, match?.venue_address].filter(Boolean).join(' ');
-  if (!query) {
+  const url = getGoogleMapsSearchUrl(match);
+  if (!url) {
     Alert.alert('Mapa no disponible', 'Esta sede no tiene direccion cargada.');
     return;
   }
 
-  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   try {
     await Linking.openURL(url);
   } catch (err) {
@@ -386,19 +387,11 @@ export default function MatchDetailScreen({ route, navigation }) {
             <Text style={[typography.h2, { color: colors.text.primary }]}>{match.title || 'Partido de padel'}</Text>
             <Text style={[typography.body, { color: colors.text.secondary, marginTop: 2 }]}>{match.venue_name}</Text>
             {match.venue_address ? (
-              <TouchableOpacity
-                style={[styles.addressCard, { backgroundColor: colors.surfaceHighlight }]}
-                activeOpacity={0.8}
+              <VenueMapPreview
+                location={match}
                 onPress={() => openVenueMap(match)}
-                accessibilityLabel={`Abrir mapa: ${match.venue_address}`}
-                accessibilityRole="button"
-              >
-                <Feather name="map-pin" size={14} color={colors.text.tertiary} />
-                <Text style={[typography.caption, { color: colors.text.secondary, marginLeft: 8, flex: 1 }]}>
-                  {match.venue_address}
-                </Text>
-                <Feather name="external-link" size={14} color={colors.text.tertiary} />
-              </TouchableOpacity>
+                style={styles.venueMapPreview}
+              />
             ) : null}
 
             <View style={styles.heroMetaGrid}>
@@ -602,12 +595,7 @@ const styles = StyleSheet.create({
   heroBody: {
     padding: spacing.sm,
   },
-  addressCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 10,
+  venueMapPreview: {
     marginTop: spacing.sm,
   },
   heroMetaGrid: {

@@ -44,6 +44,13 @@ export function createVenueFormState(venue) {
   return {
     name: venue?.name || '',
     address: venue?.address || '',
+    address_place_id: '',
+    address_locality: '',
+    address_region: '',
+    address_country: '',
+    address_lat: null,
+    address_lng: null,
+    address_selection_mode: '',
     phone: venue?.phone || '',
     image: venue?.image || '',
     price_per_slot: venue?.price_per_slot ?? '',

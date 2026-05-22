@@ -2,6 +2,7 @@ import React from 'react';
 import { DollarSign, Image as ImageIcon, MapPin, Phone } from 'lucide-react';
 import { CLUB_SERVICE_OPTIONS, SERVICE_LABELS } from '../../dashboard/venueCatalog';
 import { resolveAssetUrl } from '../../../lib/runtime';
+import VenueAddressField from './VenueAddressField';
 
 export default function VenueSettingsWorkspace({ settings }) {
   const toggleVenueService = (service) => {
@@ -39,7 +40,7 @@ export default function VenueSettingsWorkspace({ settings }) {
       <div className="venueFormGrid">
         <label><span>Nombre comercial</span><input type="text" value={settings.venueForm.name} onChange={(e) => settings.setVenueForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Ej: Padex Centro" /></label>
         <label><span>Telefono</span><input type="text" value={settings.venueForm.phone} onChange={(e) => settings.setVenueForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="+54 9 ..." /></label>
-        <label className="wideField"><span>Direccion</span><input type="text" value={settings.venueForm.address} onChange={(e) => settings.setVenueForm((prev) => ({ ...prev, address: e.target.value }))} placeholder="Ej: Santa Fe 435" /></label>
+        <VenueAddressField venueForm={settings.venueForm} setVenueForm={settings.setVenueForm} />
         <label><span>Precio general por turno</span><input type="number" min="0" step="100" value={settings.venueForm.price_per_slot} onChange={(e) => settings.setVenueForm((prev) => ({ ...prev, price_per_slot: e.target.value }))} placeholder="Ej: 12000" /></label>
         <label className="wideField"><span>Imagen actual</span><input type="text" value={settings.venueForm.image} onChange={(e) => settings.setVenueForm((prev) => ({ ...prev, image: e.target.value }))} placeholder="/uploads/..." /></label>
         <div className="wideField serviceSection">

@@ -114,6 +114,9 @@ describe('selectors.js', () => {
       const form = createVenueFormState(venue);
       expect(form.name).toBe('Test Club');
       expect(form.address).toBe('Calle 123');
+      expect(form.address_place_id).toBe('');
+      expect(form.address_lat).toBeNull();
+      expect(form.address_lng).toBeNull();
       expect(form.phone).toBe('555-1234');
       expect(form.image).toBe('/img.jpg');
       expect(form.price_per_slot).toBe(15000);
@@ -123,6 +126,7 @@ describe('selectors.js', () => {
     it('handles null/undefined venue', () => {
       const form = createVenueFormState(null);
       expect(form.name).toBe('');
+      expect(form.address_place_id).toBe('');
       expect(form.services).toEqual([]);
       expect(form.price_per_slot).toBe('');
     });

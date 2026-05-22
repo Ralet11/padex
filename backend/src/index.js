@@ -1,10 +1,10 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const morgan = require('morgan');
-const path = require('path');
 const os = require('os');
 const jwt = require('jsonwebtoken');
 
@@ -25,9 +25,14 @@ const ratingsRoutes = require('./routes/ratings');
 const leaderboardRoutes = require('./routes/leaderboard');
 const partnersRoutes = require('./routes/partners');
 const paymentsRoutes = require('./routes/payments');
+const mapsRoutes = require('./routes/maps');
 
 const app = express();
 const server = http.createServer(app);
+
+if (!String(process.env.GOOGLE_MAPS_STATIC_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '').trim()) {
+  console.warn('[startup] Maps static preview disabled: missing GOOGLE_MAPS_STATIC_API_KEY');
+}
 
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
@@ -86,6 +91,7 @@ app.use('/api/ratings', ratingsRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/partners', partnersRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/maps', mapsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date(), request_id: req.requestId });

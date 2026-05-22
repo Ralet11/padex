@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, Linking, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, Linking, ActivityIndicator, Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +16,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { spacing, radius } from '../../theme/spacing';
 import { Button, Input, SuccessToast } from '../../components/ui';
+import VenueMapPreview from '../../components/VenueMapPreview';
 import { screenPadding } from '../../theme/layout';
 import { RANK_ARRAY, getRankByTier } from '../../utils/rankings';
 import {
@@ -27,6 +28,7 @@ import {
   SERVICE_LABELS,
   SURFACE_LABELS,
 } from '../../constants/venueFilters';
+import { getGoogleMapsSearchUrl } from '../../utils/maps';
 
 const INITIAL_FORM = { title: '', description: '' };
 const INITIAL_CATEGORY_RULE = {
@@ -105,6 +107,125 @@ function getVenueCourts(venue) {
   return Array.isArray(venue?.courts) ? venue.courts : [];
 }
 
+function getVenueSelectionCopy(isSelected) {
+  if (isSelected) {
+    return 'Sede seleccionada';
+  }
+
+  return 'Toca la tarjeta para elegir esta sede';
+}
+
+function VenueOptionCard({
+  venue,
+  isSelected,
+  colors,
+  onSelect,
+  onOpenDetail,
+}) {
+  const venueImage = resolveAssetUrl(venue.image);
+
+  return (
+    <Pressable
+      onPress={onSelect}
+      accessibilityRole="button"
+      accessibilityLabel={`${isSelected ? 'Sede seleccionada' : 'Seleccionar sede'}: ${venue.name}`}
+      style={[
+        styles.optionCard,
+        {
+          borderColor: isSelected ? colors.text.primary : colors.borderLight,
+          backgroundColor: colors.surface,
+        },
+      ]}
+    >
+        <View style={styles.optionTopRow}>
+          {venueImage ? (
+            <Image source={{ uri: venueImage }} style={styles.optionImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.optionImageFallback, { backgroundColor: colors.surfaceHighlight }]}>
+              <Feather name="map-pin" size={22} color={isSelected ? colors.text.primary : colors.text.tertiary} />
+            </View>
+          )}
+
+          <View style={styles.optionInfo}>
+            <View style={styles.optionTitleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[typography.label, { color: colors.text.tertiary }]}>SEDE</Text>
+                <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 2 }]}>{venue.name}</Text>
+              </View>
+              <View style={[styles.selectionDot, { backgroundColor: colors.surface, borderColor: isSelected ? colors.text.primary : colors.borderLight }]}>
+                <Feather name={isSelected ? 'check' : 'circle'} size={14} color={isSelected ? colors.text.primary : colors.text.tertiary} />
+              </View>
+            </View>
+
+            <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 4 }]} numberOfLines={2}>
+              {venue.address || 'Direccion no disponible'}
+            </Text>
+
+            <View style={styles.metaRow}>
+              <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
+                <Text style={[typography.caption, { color: colors.text.secondary }]}>
+                  {getCourtCountLabel(venue)}
+                </Text>
+              </View>
+              {venue.price_per_slot ? (
+                <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
+                  <Text style={[typography.caption, { color: colors.text.secondary }]}>
+                    Desde ${getPlayerPrice(venue.price_per_slot, 0).toLocaleString('es-AR')}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.optionFooterRow}>
+              {venue.phone ? (
+                <Text style={[typography.caption, { color: colors.text.tertiary, flex: 1 }]} numberOfLines={1}>
+                  {venue.phone}
+                </Text>
+              ) : (
+                <View style={{ flex: 1 }} />
+              )}
+
+              <TouchableOpacity
+                onPress={(event) => {
+                  event?.stopPropagation?.();
+                  onOpenDetail();
+                }}
+                style={[styles.detailButton, { borderColor: colors.borderLight, backgroundColor: colors.background }]}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Ver detalle de ${venue.name}`}
+              >
+                <Feather name="info" size={14} color={colors.text.secondary} />
+                <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>Ver detalle</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.optionBottomRow}>
+          <View
+            style={[
+              styles.selectionHint,
+              {
+                borderColor: isSelected ? colors.text.primary : colors.borderLight,
+                backgroundColor: colors.surfaceHighlight,
+              }
+            ]}
+          >
+            <Feather
+              name={isSelected ? 'check-circle' : 'hand'}
+              size={14}
+              color={isSelected ? colors.text.primary : colors.text.secondary}
+            />
+            <Text style={[typography.captionMedium, styles.selectionHintText, { color: isSelected ? colors.text.primary : colors.text.secondary }]}>
+              {getVenueSelectionCopy(isSelected)}
+            </Text>
+          </View>
+        </View>
+    </Pressable>
+  );
+}
+
 function formatSpecLabel(value) {
   if (!value) return 'Sin especificar';
 
@@ -150,10 +271,13 @@ export default function CreateMatchScreen({ navigation }) {
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingVenues, setLoadingVenues] = useState(false);
+  const [hasLoadedVenues, setHasLoadedVenues] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [searchingNextDate, setSearchingNextDate] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const venuesCountRef = useRef(0);
+  const hasLoadedVenuesRef = useRef(false);
 
   const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -209,6 +333,14 @@ export default function CreateMatchScreen({ navigation }) {
     [activeVenueCourts, expandedCourtId]
   );
 
+  useEffect(() => {
+    venuesCountRef.current = venues.length;
+  }, [venues.length]);
+
+  useEffect(() => {
+    hasLoadedVenuesRef.current = hasLoadedVenues;
+  }, [hasLoadedVenues]);
+
   const findFirstAvailableDate = useCallback(async (venueId, startDate) => {
     const startIndex = Math.max(0, dates.findIndex((date) => date.value === startDate));
 
@@ -232,13 +364,12 @@ export default function CreateMatchScreen({ navigation }) {
   }, [availabilityFilters, dateSummaries, dates]);
 
   const openVenueMap = useCallback(async (venue) => {
-    const query = [venue?.name, venue?.address].filter(Boolean).join(' ');
-    if (!query) {
+    const url = getGoogleMapsSearchUrl(venue);
+    if (!url) {
       Alert.alert('Mapa no disponible', 'Esta sede no tiene direccion cargada.');
       return;
     }
 
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
     try {
       await Linking.openURL(url);
     } catch (err) {
@@ -246,12 +377,22 @@ export default function CreateMatchScreen({ navigation }) {
     }
   }, []);
 
+  const handleSelectVenue = useCallback((venue) => {
+    setSelectedVenue(venue);
+  }, []);
+
   const loadVenues = useCallback(async (params = venueQueryParams) => {
-    setLoadingVenues(true);
+    const shouldShowBlockingLoader = !hasLoadedVenuesRef.current && venuesCountRef.current === 0;
+
+    if (shouldShowBlockingLoader) {
+      setLoadingVenues(true);
+    }
+
     try {
       const res = await courtsAPI.venues(params);
       const nextVenues = res.data.venues || [];
       setVenues(nextVenues);
+      setHasLoadedVenues(true);
       setSelectedVenue((current) => {
         if (!current) return current;
         return nextVenues.find((venue) => venue.id === current.id) || current;
@@ -261,9 +402,14 @@ export default function CreateMatchScreen({ navigation }) {
         return nextVenues.find((venue) => venue.id === current.id) || current;
       });
     } catch (err) {
-      setVenues([]);
+      if (shouldShowBlockingLoader) {
+        setVenues([]);
+      }
+      setHasLoadedVenues(true);
     } finally {
-      setLoadingVenues(false);
+      if (shouldShowBlockingLoader) {
+        setLoadingVenues(false);
+      }
     }
   }, [venueQueryParams]);
 
@@ -335,15 +481,11 @@ export default function CreateMatchScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadVenues(venueQueryParams);
-      if (selectedVenueId && selectedDate) {
-        fetchSlots();
-        loadDateSummaries(selectedVenueId);
-      }
-    }, [fetchSlots, loadDateSummaries, loadVenues, selectedDate, selectedVenueId, venueQueryParams])
+    }, [loadVenues, venueQueryParams])
   );
 
   useEffect(() => {
-    if (!selectedVenueId || !selectedDate) return undefined;
+    if (step < 2 || !selectedVenueId || !selectedDate) return undefined;
 
     fetchSlots();
     loadDateSummaries(selectedVenueId);
@@ -379,7 +521,7 @@ export default function CreateMatchScreen({ navigation }) {
       socket.off('connect', handleReconnect);
       leaveVenueAvailability(selectedVenueId, selectedDate);
     };
-  }, [fetchSlots, loadDateSummaries, selectedDate, selectedVenueId]);
+  }, [fetchSlots, loadDateSummaries, selectedDate, selectedVenueId, step]);
 
   useEffect(() => {
     setSelectedSlot(null);
@@ -561,8 +703,6 @@ export default function CreateMatchScreen({ navigation }) {
 
   const renderActionBar = () => {
     if (step === 1) {
-      if (!selectedVenue) return null;
-
       return (
         <View style={[styles.btnRow, styles.singleActionRow]}>
           <Button
@@ -571,6 +711,7 @@ export default function CreateMatchScreen({ navigation }) {
               if (!selectedVenue) return Alert.alert('Error', 'Selecciona una sede');
               setStep(2);
             }}
+            disabled={!selectedVenue}
             style={styles.primaryActionButton}
             size="md"
             textStyle={styles.primaryActionText}
@@ -605,7 +746,7 @@ export default function CreateMatchScreen({ navigation }) {
     );
   };
 
-  const shouldShowFooterActions = step !== 1 || Boolean(selectedVenue);
+  const shouldShowFooterActions = true;
   const floatingActionBottom = Math.max(insets.bottom, spacing.sm);
   const floatingActionHeight = step === 1 ? 96 : 104;
   const shouldRenderFloatingFade = shouldShowFooterActions && step !== 3;
@@ -710,95 +851,16 @@ export default function CreateMatchScreen({ navigation }) {
               </View>
             ) : venues.map((venue) => {
               const isSelected = selectedVenue?.id === venue.id;
-              const venueImage = resolveAssetUrl(venue.image);
 
               return (
-                <View
+                <VenueOptionCard
                   key={venue.id}
-                  style={[
-                    styles.optionCard,
-                    { borderColor: colors.borderLight, backgroundColor: colors.surface },
-                    isSelected && { backgroundColor: colors.surfaceHighlight, borderColor: colors.text.primary }
-                  ]}
-                >
-                  <View style={styles.optionTopRow}>
-                    {venueImage ? (
-                      <Image source={{ uri: venueImage }} style={styles.optionImage} resizeMode="cover" />
-                    ) : (
-                      <View style={[styles.optionImageFallback, { backgroundColor: isSelected ? colors.text.primary : colors.surfaceHighlight }]}>
-                        <Feather name="map-pin" size={22} color={isSelected ? colors.accent : colors.text.tertiary} />
-                      </View>
-                    )}
-
-                    <View style={styles.optionInfo}>
-                      <View style={styles.optionTitleRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[typography.label, { color: colors.text.tertiary }]}>SEDE</Text>
-                          <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 2 }]}>{venue.name}</Text>
-                        </View>
-                        <View style={[styles.selectionDot, { backgroundColor: isSelected ? colors.text.primary : colors.background, borderColor: isSelected ? colors.text.primary : colors.borderLight }]}>
-                          <Feather name={isSelected ? 'check' : 'circle'} size={14} color={isSelected ? colors.accent : colors.text.tertiary} />
-                        </View>
-                      </View>
-
-                      <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 4 }]} numberOfLines={2}>
-                        {venue.address || 'Direccion no disponible'}
-                      </Text>
-
-                      <View style={styles.metaRow}>
-                        <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
-                          <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                            {getCourtCountLabel(venue)}
-                          </Text>
-                        </View>
-                        {venue.price_per_slot ? (
-                          <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
-                            <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                              Desde ${getPlayerPrice(venue.price_per_slot, 0).toLocaleString('es-AR')}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-
-                      <View style={styles.optionFooterRow}>
-                        {venue.phone ? (
-                          <Text style={[typography.caption, { color: colors.text.tertiary, flex: 1 }]} numberOfLines={1}>
-                            {venue.phone}
-                          </Text>
-                        ) : (
-                          <View style={{ flex: 1 }} />
-                        )}
-
-                        <TouchableOpacity
-                          onPress={() => setActiveVenue(venue)}
-                          style={[styles.detailButton, { borderColor: colors.borderLight, backgroundColor: colors.background }]}
-                          activeOpacity={0.75}
-                        >
-                          <Feather name="info" size={14} color={colors.text.secondary} />
-                          <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>Detalle</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.optionBottomRow}>
-                    <TouchableOpacity
-                      onPress={() => setSelectedVenue((current) => (current?.id === venue.id ? null : venue))}
-                      activeOpacity={0.8}
-                      style={[
-                        styles.selectionPill,
-                        {
-                          borderColor: isSelected ? colors.text.primary : colors.borderLight,
-                          backgroundColor: isSelected ? colors.text.primary : colors.background
-                        }
-                      ]}
-                    >
-                      <Text style={[typography.captionMedium, { color: isSelected ? colors.accent : colors.text.secondary }]}>
-                        {isSelected ? 'Quitar seleccion' : 'Seleccionar'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                  venue={venue}
+                  isSelected={isSelected}
+                  colors={colors}
+                  onSelect={() => handleSelectVenue(venue)}
+                  onOpenDetail={() => setActiveVenue(venue)}
+                />
               );
             })}
             {!loadingVenues && venues.length === 0 ? (
@@ -978,6 +1040,12 @@ export default function CreateMatchScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
+
+              <VenueMapPreview
+                location={selectedVenue}
+                onPress={() => openVenueMap(selectedVenue)}
+                style={styles.summaryMapPreview}
+              />
 
               <View style={styles.summaryRow}>
                 <Feather name="calendar" size={14} color={colors.text.tertiary} />
@@ -1445,6 +1513,15 @@ export default function CreateMatchScreen({ navigation }) {
                   </View>
                 ) : null}
 
+                {activeVenue?.address ? (
+                  <View style={styles.modalSection}>
+                    <VenueMapPreview
+                      location={activeVenue}
+                      onPress={() => openVenueMap(activeVenue)}
+                    />
+                  </View>
+                ) : null}
+
                 <View style={styles.modalSection}>
                   <Text style={[typography.captionMedium, styles.modalSectionEyebrow, { color: colors.text.tertiary }]}>
                     SERVICIOS DE LA SEDE
@@ -1760,15 +1837,18 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     alignItems: 'flex-start',
   },
-  selectionPill: {
-    minWidth: 110,
-    minHeight: 30,
+  selectionHint: {
+    minHeight: 32,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+  },
+  selectionHintText: {
+    flexShrink: 1,
   },
   weekSwitcher: {
     flexDirection: 'row',
@@ -1844,6 +1924,9 @@ const styles = StyleSheet.create({
   },
   summaryVenueInfo: {
     flex: 1,
+  },
+  summaryMapPreview: {
+    marginTop: spacing.xs,
   },
   summaryRow: {
     flexDirection: 'row',
