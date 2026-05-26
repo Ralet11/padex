@@ -5,7 +5,7 @@
     "scheme": "padex",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/padex-app-icon.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/ball-mark.png",
@@ -35,7 +35,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/padex-app-icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#07111B"
       },
       "package": "com.padex.mobile",

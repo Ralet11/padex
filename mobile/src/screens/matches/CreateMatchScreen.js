@@ -5,6 +5,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Line, Rect } from 'react-native-svg';
 import { courtsAPI, matchesAPI, resolveAssetUrl } from '../../services/api';
 import {
   getMatchPaymentOutcomeMessage,
@@ -107,12 +109,39 @@ function getVenueCourts(venue) {
   return Array.isArray(venue?.courts) ? venue.courts : [];
 }
 
-function getVenueSelectionCopy(isSelected) {
-  if (isSelected) {
-    return 'Sede seleccionada';
-  }
+const SLOT_PERIODS = [
+  { key: 'morning', label: 'Mañana', icon: 'sunrise', helper: 'Antes del mediodía' },
+  { key: 'afternoon', label: 'Tarde', icon: 'sun', helper: 'De 12 a 18 hs' },
+  { key: 'evening', label: 'Noche', icon: 'moon', helper: 'Desde las 18 hs' },
+];
 
-  return 'Toca la tarjeta para elegir esta sede';
+function groupSlotsByPeriod(slots) {
+  const groups = { morning: [], afternoon: [], evening: [] };
+  for (const slot of slots) {
+    const hour = parseInt(String(slot.time || '00:00').split(':')[0], 10);
+    if (Number.isNaN(hour) || hour < 12) groups.morning.push(slot);
+    else if (hour < 18) groups.afternoon.push(slot);
+    else groups.evening.push(slot);
+  }
+  return groups;
+}
+
+function CourtPattern({ color }) {
+  return (
+    <Svg
+      style={StyleSheet.absoluteFill}
+      viewBox="0 0 100 60"
+      preserveAspectRatio="none"
+    >
+      <Rect x="6" y="6" width="88" height="48" stroke={color} strokeWidth="0.5" fill="none" />
+      <Line x1="6" y1="30" x2="94" y2="30" stroke={color} strokeWidth="0.5" />
+      <Line x1="6" y1="18" x2="94" y2="18" stroke={color} strokeWidth="0.3" />
+      <Line x1="6" y1="42" x2="94" y2="42" stroke={color} strokeWidth="0.3" />
+      <Line x1="50" y1="18" x2="50" y2="42" stroke={color} strokeWidth="0.3" />
+      <Line x1="20" y1="6" x2="20" y2="54" stroke={color} strokeWidth="0.2" strokeDasharray="0.6,1.2" />
+      <Line x1="80" y1="6" x2="80" y2="54" stroke={color} strokeWidth="0.2" strokeDasharray="0.6,1.2" />
+    </Svg>
+  );
 }
 
 function VenueOptionCard({
@@ -123,6 +152,9 @@ function VenueOptionCard({
   onOpenDetail,
 }) {
   const venueImage = resolveAssetUrl(venue.image);
+  const courtsLabel = getCourtCountLabel(venue);
+  const patternColor = isSelected ? 'rgba(167, 206, 41, 0.40)' : 'rgba(167, 206, 41, 0.18)';
+  const cardBaseColor = isSelected ? '#11160B' : '#0E1014';
 
   return (
     <Pressable
@@ -130,98 +162,74 @@ function VenueOptionCard({
       accessibilityRole="button"
       accessibilityLabel={`${isSelected ? 'Sede seleccionada' : 'Seleccionar sede'}: ${venue.name}`}
       style={[
-        styles.optionCard,
+        styles.galleryCard,
         {
-          borderColor: isSelected ? colors.text.primary : colors.borderLight,
-          backgroundColor: colors.surface,
+          borderColor: isSelected ? colors.accent : 'rgba(255,255,255,0.08)',
+          backgroundColor: cardBaseColor,
         },
+        isSelected && styles.galleryCardSelected,
       ]}
     >
-        <View style={styles.optionTopRow}>
-          {venueImage ? (
-            <Image source={{ uri: venueImage }} style={styles.optionImage} resizeMode="cover" />
-          ) : (
-            <View style={[styles.optionImageFallback, { backgroundColor: colors.surfaceHighlight }]}>
-              <Feather name="map-pin" size={22} color={isSelected ? colors.text.primary : colors.text.tertiary} />
-            </View>
-          )}
-
-          <View style={styles.optionInfo}>
-            <View style={styles.optionTitleRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[typography.label, { color: colors.text.tertiary }]}>SEDE</Text>
-                <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 2 }]}>{venue.name}</Text>
-              </View>
-              <View style={[styles.selectionDot, { backgroundColor: colors.surface, borderColor: isSelected ? colors.text.primary : colors.borderLight }]}>
-                <Feather name={isSelected ? 'check' : 'circle'} size={14} color={isSelected ? colors.text.primary : colors.text.tertiary} />
-              </View>
-            </View>
-
-            <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 4 }]} numberOfLines={2}>
-              {venue.address || 'Direccion no disponible'}
-            </Text>
-
-            <View style={styles.metaRow}>
-              <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
-                <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                  {getCourtCountLabel(venue)}
-                </Text>
-              </View>
-              {venue.price_per_slot ? (
-                <View style={[styles.metaChip, { backgroundColor: colors.background }]}>
-                  <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                    Desde ${getPlayerPrice(venue.price_per_slot, 0).toLocaleString('es-AR')}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.optionFooterRow}>
-              {venue.phone ? (
-                <Text style={[typography.caption, { color: colors.text.tertiary, flex: 1 }]} numberOfLines={1}>
-                  {venue.phone}
-                </Text>
-              ) : (
-                <View style={{ flex: 1 }} />
-              )}
-
-              <TouchableOpacity
-                onPress={(event) => {
-                  event?.stopPropagation?.();
-                  onOpenDetail();
-                }}
-                style={[styles.detailButton, { borderColor: colors.borderLight, backgroundColor: colors.background }]}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={`Ver detalle de ${venue.name}`}
-              >
-                <Feather name="info" size={14} color={colors.text.secondary} />
-                <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>Ver detalle</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+      {venueImage ? (
+        <Image source={{ uri: venueImage }} style={styles.galleryBgImage} resizeMode="cover" />
+      ) : (
+        <View style={StyleSheet.absoluteFill}>
+          <CourtPattern color={patternColor} />
         </View>
+      )}
 
-        <View style={styles.optionBottomRow}>
-          <View
-            style={[
-              styles.selectionHint,
-              {
-                borderColor: isSelected ? colors.text.primary : colors.borderLight,
-                backgroundColor: colors.surfaceHighlight,
-              }
-            ]}
-          >
-            <Feather
-              name={isSelected ? 'check-circle' : 'hand'}
-              size={14}
-              color={isSelected ? colors.text.primary : colors.text.secondary}
-            />
-            <Text style={[typography.captionMedium, styles.selectionHintText, { color: isSelected ? colors.text.primary : colors.text.secondary }]}>
-              {getVenueSelectionCopy(isSelected)}
+      <LinearGradient
+        colors={[
+          'rgba(0,0,0,0.10)',
+          'rgba(0,0,0,0.55)',
+          'rgba(0,0,0,0.92)',
+        ]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View style={styles.galleryTopRow} pointerEvents="box-none">
+        {isSelected ? (
+          <View style={[styles.selectedPill, { backgroundColor: colors.accent }]}>
+            <Feather name="check" size={11} color="#0A0A0A" />
+            <Text style={[typography.captionMedium, styles.selectedPillText]}>
+              Seleccionada
             </Text>
           </View>
+        ) : (
+          <View style={{ flex: 0 }} />
+        )}
+
+        <TouchableOpacity
+          onPress={(event) => {
+            event?.stopPropagation?.();
+            onOpenDetail();
+          }}
+          style={styles.detailPill}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver detalle de ${venue.name}`}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Text style={[typography.captionMedium, { color: '#FFFFFF' }]}>Ver detalle</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.galleryBottom}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[typography.h3, styles.galleryTitle]} numberOfLines={1}>
+            {venue.name}
+          </Text>
+          <Text style={[typography.caption, styles.gallerySubtitle]} numberOfLines={1}>
+            {venue.address || 'Direccion no disponible'}
+          </Text>
         </View>
+
+        <View style={styles.galleryCourtsBadge}>
+          <Feather name="grid" size={12} color="#FFFFFF" />
+          <Text style={[typography.captionMedium, { color: '#FFFFFF' }]}>{courtsLabel}</Text>
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -332,6 +340,7 @@ export default function CreateMatchScreen({ navigation }) {
     () => activeVenueCourts.find((court) => court.id === expandedCourtId) || null,
     [activeVenueCourts, expandedCourtId]
   );
+  const groupedSlots = useMemo(() => groupSlotsByPeriod(slots), [slots]);
 
   useEffect(() => {
     venuesCountRef.current = venues.length;
@@ -653,7 +662,7 @@ export default function CreateMatchScreen({ navigation }) {
       setToastVisible(true);
 
       setTimeout(() => {
-        navigation.navigate('Home', { screen: 'MatchDetail', params: { matchId: createdMatchId } });
+        navigation.navigate('Inicio', { screen: 'MatchDetail', params: { matchId: createdMatchId } });
       }, 1200);
     } catch (err) {
       Alert.alert('Error', err.message);
@@ -703,15 +712,38 @@ export default function CreateMatchScreen({ navigation }) {
 
   const renderActionBar = () => {
     if (step === 1) {
+      if (selectedVenue) {
+        return (
+          <View style={[styles.btnRow, styles.singleActionRow]}>
+            <TouchableOpacity
+              onPress={() => setStep(2)}
+              activeOpacity={0.88}
+              style={[styles.smartCtaButton, { backgroundColor: colors.text.primary }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Siguiente. Sede elegida ${selectedVenue.name}`}
+            >
+              <View style={styles.smartCtaTextWrap}>
+                <Text style={[typography.bodyBold, { color: colors.background }]} numberOfLines={1}>
+                  Siguiente
+                </Text>
+                <Text style={[typography.caption, styles.smartCtaVenueName, { color: colors.accent }]} numberOfLines={1}>
+                  {selectedVenue.name}
+                </Text>
+              </View>
+              <View style={[styles.smartCtaArrow, { backgroundColor: colors.accent }]}>
+                <Feather name="arrow-right" size={18} color="#0A0A0A" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+
       return (
         <View style={[styles.btnRow, styles.singleActionRow]}>
           <Button
-            title="Siguiente"
-            onPress={() => {
-              if (!selectedVenue) return Alert.alert('Error', 'Selecciona una sede');
-              setStep(2);
-            }}
-            disabled={!selectedVenue}
+            title="Elegi una sede para continuar"
+            onPress={() => Alert.alert('Error', 'Selecciona una sede')}
+            disabled
             style={styles.primaryActionButton}
             size="md"
             textStyle={styles.primaryActionText}
@@ -879,10 +911,41 @@ export default function CreateMatchScreen({ navigation }) {
 
         {step === 2 && (
           <View>
-            <Text style={[typography.subtitle, { color: colors.text.primary, marginBottom: 2 }]}>Elegi el turno</Text>
-            <Text style={[typography.caption, { color: colors.text.secondary, marginBottom: spacing.md }]}>
-              {selectedVenue?.name}
-            </Text>
+            <Text style={[typography.subtitle, { color: colors.text.primary, marginBottom: spacing.sm }]}>Elegi el turno</Text>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => setStep(1)}
+              style={[styles.venuePeekCard, { borderColor: colors.borderLight, backgroundColor: colors.surfaceHighlight }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Sede elegida ${selectedVenue?.name}. Tocá para cambiar.`}
+            >
+              <View style={styles.venuePeekPattern}>
+                {resolveAssetUrl(selectedVenue?.image) ? (
+                  <Image source={{ uri: resolveAssetUrl(selectedVenue.image) }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0E1410' }]}>
+                    <CourtPattern color="rgba(167, 206, 41, 0.45)" />
+                  </View>
+                )}
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.20)', 'rgba(0,0,0,0.70)']}
+                  style={StyleSheet.absoluteFill}
+                />
+              </View>
+
+              <View style={styles.venuePeekInfo}>
+                <Text style={[typography.captionMedium, { color: colors.accent, letterSpacing: 1 }]}>SEDE ELEGIDA</Text>
+                <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 2 }]} numberOfLines={1}>
+                  {selectedVenue?.name}
+                </Text>
+              </View>
+
+              <View style={[styles.venuePeekChange, { backgroundColor: colors.background, borderColor: colors.borderLight }]}>
+                <Feather name="edit-2" size={12} color={colors.text.secondary} />
+                <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>Cambiar</Text>
+              </View>
+            </TouchableOpacity>
 
             {activeFilterLabels.length > 0 ? (
               <View style={styles.stepFilterSummary}>
@@ -990,27 +1053,57 @@ export default function CreateMatchScreen({ navigation }) {
                 />
               </View>
             ) : (
-              <View style={styles.slotsGrid}>
-                {slots.map((slot) => {
-                  const isSelected = selectedSlot?.date === slot.date && selectedSlot?.time === slot.time;
+              <View>
+                {SLOT_PERIODS.map((period) => {
+                  const periodSlots = groupedSlots[period.key];
+                  if (!periodSlots || periodSlots.length === 0) return null;
+                  const slotsLabel = `${periodSlots.length} ${periodSlots.length === 1 ? 'turno' : 'turnos'}`;
 
                   return (
-                    <TouchableOpacity
-                      key={`${slot.date}-${slot.time}`}
-                      style={[
-                        styles.slotCard,
-                        { borderColor: colors.borderLight },
-                        isSelected && { borderColor: colors.text.primary, backgroundColor: colors.text.primary }
-                      ]}
-                      onPress={() => setSelectedSlot(slot)}
-                    >
-                      <Text style={[typography.bodyBold, { color: isSelected ? colors.accent : colors.text.secondary }]}>
-                        {slot.time}
-                      </Text>
-                      <Text style={[typography.caption, { color: isSelected ? colors.accent : colors.text.tertiary, marginTop: 4 }]}>
-                        ${Number(slot.price || 0).toLocaleString('es-AR')}
-                      </Text>
-                    </TouchableOpacity>
+                    <View key={period.key} style={styles.slotPeriodSection}>
+                      <View style={styles.slotPeriodHeader}>
+                        <View style={[styles.slotPeriodIcon, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                          <Feather name={period.icon} size={13} color={colors.text.secondary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[typography.captionMedium, styles.slotPeriodLabel, { color: colors.text.primary }]}>
+                            {period.label}
+                          </Text>
+                          <Text style={[typography.caption, { color: colors.text.tertiary, marginTop: 1 }]}>
+                            {period.helper}
+                          </Text>
+                        </View>
+                        <View style={[styles.slotPeriodCountChip, { backgroundColor: colors.surfaceHighlight, borderColor: colors.borderLight }]}>
+                          <Text style={[typography.captionMedium, { color: colors.text.secondary }]}>{slotsLabel}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.slotsGrid}>
+                        {periodSlots.map((slot) => {
+                          const isSelected = selectedSlot?.date === slot.date && selectedSlot?.time === slot.time;
+
+                          return (
+                            <TouchableOpacity
+                              key={`${slot.date}-${slot.time}`}
+                              activeOpacity={0.85}
+                              style={[
+                                styles.slotCard,
+                                { borderColor: colors.borderLight, backgroundColor: colors.surface },
+                                isSelected && [styles.slotCardSelected, { backgroundColor: colors.text.primary }]
+                              ]}
+                              onPress={() => setSelectedSlot(slot)}
+                            >
+                              <Text style={[typography.bodyBold, { color: isSelected ? colors.accent : colors.text.primary }]}>
+                                {slot.time}
+                              </Text>
+                              <Text style={[typography.caption, { color: isSelected ? colors.accent : colors.text.tertiary, marginTop: 4 }]}>
+                                ${Number(slot.price || 0).toLocaleString('es-AR')}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
                   );
                 })}
               </View>
@@ -1761,6 +1854,117 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+  galleryCard: {
+    height: 168,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  galleryCardSelected: {
+    borderWidth: 2,
+    shadowColor: '#A7CE29',
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+  galleryBgImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  galleryTopRow: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+    right: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  selectedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+  },
+  selectedPillText: {
+    color: '#0A0A0A',
+    fontWeight: '700',
+  },
+  detailPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  galleryBottom: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    zIndex: 2,
+  },
+  galleryTitle: {
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  gallerySubtitle: {
+    color: 'rgba(255,255,255,0.78)',
+    marginTop: 4,
+  },
+  galleryCourtsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  smartCtaButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    minHeight: 56,
+    borderRadius: radius.lg,
+    gap: spacing.sm,
+  },
+  smartCtaTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  smartCtaVenueName: {
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  smartCtaArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   optionCard: {
     borderRadius: radius.lg,
     borderWidth: 1,
@@ -1883,7 +2087,72 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginRight: 8,
   },
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
+  venuePeekCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: 8,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  venuePeekPattern: {
+    width: 64,
+    height: 56,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  venuePeekInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  venuePeekChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  slotPeriodSection: {
+    marginBottom: spacing.lg,
+  },
+  slotPeriodHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  slotPeriodIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slotPeriodLabel: {
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  slotPeriodCountChip: {
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  slotCardSelected: {
+    borderColor: '#A7CE29',
+    borderWidth: 2,
+    shadowColor: '#A7CE29',
+    shadowOpacity: 0.40,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   emptySlotsState: {
     alignItems: 'center',
     justifyContent: 'center',
