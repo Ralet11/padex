@@ -35,7 +35,7 @@ router.get('/players', auth, async (req, res) => {
 
     const playersRaw = await User.findAll({
       where: whereParams,
-      attributes: ['id', 'name', 'stars', 'category_tier', 'position', 'paddle_brand', 'avatar', 'wins', 'losses'],
+      attributes: ['id', 'name', 'stars', 'category_tier', 'position', 'paddle_brand', 'avatar', 'avatar_seed', 'wins', 'losses'],
       limit: 50,
       order: [['stars', 'DESC']]
     });
@@ -186,7 +186,7 @@ router.get('/connections', auth, async (req, res) => {
 
       const partnerId = connData.requester_id === req.user.id ? connData.addressee_id : connData.requester_id;
       const partner = await User.findByPk(partnerId, {
-        attributes: ['name', 'avatar', 'stars', 'category_tier', 'position']
+        attributes: ['name', 'avatar', 'avatar_seed', 'stars', 'category_tier', 'position']
       });
 
       const lastMessage = await Message.findOne({
@@ -209,6 +209,7 @@ router.get('/connections', auth, async (req, res) => {
         partner_id: partnerId,
         partner_name: partner?.name,
         partner_avatar: partner?.avatar,
+        partner_avatar_seed: partner?.avatar_seed || null,
         partner_stars: partner?.stars,
         partner_category: partner?.category_tier,
         partner_position: partner?.position,
@@ -245,7 +246,7 @@ router.get('/pending', auth, async (req, res) => {
       include: [{
         model: User,
         as: 'Requester',
-        attributes: ['id', 'name', 'avatar', 'stars', 'category_tier']
+        attributes: ['id', 'name', 'avatar', 'avatar_seed', 'stars', 'category_tier']
       }],
       order: [['createdAt', 'DESC']]
     });
@@ -258,6 +259,7 @@ router.get('/pending', auth, async (req, res) => {
         requester_id: connData.Requester.id,
         name: connData.Requester.name,
         avatar: connData.Requester.avatar,
+        avatar_seed: connData.Requester.avatar_seed || null,
         stars: connData.Requester.stars,
         category: connData.Requester.category_tier
       };

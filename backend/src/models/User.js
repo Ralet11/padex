@@ -1,6 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../database');
 const bcrypt = require('bcryptjs');
+const { ensureAvatarSeed } = require('../services/avatarSeed');
 
 const User = sequelize.define('User', {
     id: {
@@ -33,6 +34,10 @@ const User = sequelize.define('User', {
     },
     avatar: {
         type: DataTypes.STRING,
+    },
+    avatar_seed: {
+        type: DataTypes.JSON,
+        allowNull: true,
     },
     position: {
         type: DataTypes.STRING,
@@ -117,15 +122,25 @@ const User = sequelize.define('User', {
         type: DataTypes.ENUM('player', 'partner', 'admin'),
         defaultValue: 'player',
     },
+    deleted_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+    },
 }, {
     tableName: 'users',
     hooks: {
+        beforeValidate: async (user) => {
+            ensureAvatarSeed(user);
+        },
         beforeCreate: async (user) => {
             if (user.password) {
                 user.password = await bcrypt.hash(user.password, 10);
             }
         },
         beforeUpdate: async (user) => {
+            if (!user.avatar_seed) {
+                ensureAvatarSeed(user);
+            }
             if (user.changed('password')) {
                 user.password = await bcrypt.hash(user.password, 10);
             }

@@ -18,6 +18,10 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ error: 'Usuario no encontrado para el token provisto' });
     }
 
+    if (user.deleted_at) {
+      return res.status(401).json({ error: 'La cuenta ya no esta disponible' });
+    }
+
     const userData = user.toJSON();
 
     req.user = {

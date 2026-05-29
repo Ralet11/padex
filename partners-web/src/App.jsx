@@ -3,6 +3,8 @@ import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router
 import Onboarding from './features/onboarding/Onboarding';
 import Landing from './features/auth/Landing';
 import HomeLanding from './features/home/HomeLanding';
+import PrivacyPolicyPage from './features/legal/PrivacyPolicyPage';
+import AccountDeletionPage from './features/legal/AccountDeletionPage';
 import AdminDashboard from './features/admin/AdminDashboard';
 import HoyPage from './features/operations/routes/HoyPage';
 import AgendaPage from './features/operations/routes/AgendaPage';
@@ -228,6 +230,9 @@ function App() {
               : <Navigate to="/operations/hoy" replace />
           } 
         />
+
+        <Route path="/politicas-de-privacidad" element={<PrivacyPolicyPage />} />
+        <Route path="/eliminar-cuenta" element={<AccountDeletionPage />} />
         
         <Route path="/operations" element={user?.role === 'partner' ? <Navigate to="/operations/hoy" replace /> : <Navigate to="/socios" replace />} />
         <Route path="/operations/hoy" element={renderPartnerOperationsRoute(HoyPage)} />

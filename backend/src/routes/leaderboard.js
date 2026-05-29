@@ -12,6 +12,7 @@ const LEADERBOARD_USER_ATTRIBUTES = [
   'id',
   'name',
   'avatar',
+  'avatar_seed',
   'position',
   'reputation_avg_score',
   'reputation_ratings_count',

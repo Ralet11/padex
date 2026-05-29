@@ -165,6 +165,7 @@ export default function SocialScreen({ navigation }) {
           <Avatar
             name={item.partner_name}
             uri={item.partner_avatar}
+            avatar_seed={item.partner_avatar_seed}
             size={48}
             category={partnerRank.name}
           />
@@ -210,6 +211,7 @@ export default function SocialScreen({ navigation }) {
           <Avatar
             name={item.name}
             uri={item.avatar}
+            avatar_seed={item.avatar_seed}
             size={48}
             category={requesterRank.name}
           />

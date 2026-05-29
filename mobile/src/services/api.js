@@ -86,6 +86,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   social: (provider, data) => api.post(`/auth/social/${provider}`, data),
   me: () => api.get('/auth/me'),
+  deleteAccount: (data = {}) => api.post('/auth/delete-account', data),
 };
 
 export const profileAPI = {

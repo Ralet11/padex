@@ -5,7 +5,7 @@
     "scheme": "padex",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/padex-app-icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/ball-mark.png",
@@ -38,8 +38,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#07111B"
       },
-      "package": "com.padex.mobile",
-      "versionCode": 1
+      "package": "com.padex.app",
+      "versionCode": 2
     },
     "plugins": [
       [

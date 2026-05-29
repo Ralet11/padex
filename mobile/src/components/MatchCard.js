@@ -157,6 +157,7 @@ export default function MatchCard({ match, onPress, compact = false }) {
           <Avatar
             name={match.creator_name}
             uri={match.creator_avatar}
+            avatar_seed={match.creator_avatar_seed}
             size={avatarSize}
             category={getRankByTier(creatorTier).name}
           />

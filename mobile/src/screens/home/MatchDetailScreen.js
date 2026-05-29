@@ -73,7 +73,7 @@ function PlayerQuadrant({ player, colors, isCreator }) {
   return (
     <View style={[styles.playerRowCard, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}> 
       <View style={styles.playerRowMain}>
-        <Avatar name={player.name} uri={player.avatar} size={52} category={rank.name} />
+        <Avatar name={player.name} uri={player.avatar} avatar_seed={player.avatar_seed} size={52} category={rank.name} />
         <View style={styles.playerRowInfo}>
           <View style={styles.playerRowTitle}>
             <Text style={[typography.bodyBold, { color: colors.text.primary, flex: 1 }]} numberOfLines={1}>
@@ -470,7 +470,7 @@ export default function MatchDetailScreen({ route, navigation }) {
           player.id !== user.id ? (
             <View key={`rating-${player.id}`} style={[styles.ratingRow, { borderColor: colors.borderLight, backgroundColor: colors.surface }]}> 
               <View style={styles.ratingPlayerInfo}>
-                <Avatar name={player.name} uri={player.avatar} size={42} category={getRankByTier(getCompetitiveTier(player)).name} />
+                <Avatar name={player.name} uri={player.avatar} avatar_seed={player.avatar_seed} size={42} category={getRankByTier(getCompetitiveTier(player)).name} />
                 <View style={{ marginLeft: spacing.md }}>
                   <Text style={[typography.bodyBold, { color: colors.text.primary }]}>{player.name}</Text>
                   <Text style={[typography.caption, { color: colors.text.secondary }]}> 

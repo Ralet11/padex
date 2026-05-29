@@ -111,7 +111,7 @@ async function getMatchWithDetails(matchId, options = {}) {
       {
         model: User,
         as: 'Creator',
-        attributes: ['id', 'name', 'stars', 'category_tier', 'avatar']
+        attributes: ['id', 'name', 'stars', 'category_tier', 'avatar', 'avatar_seed']
       },
       {
         model: MatchPlayer,
@@ -119,7 +119,7 @@ async function getMatchWithDetails(matchId, options = {}) {
         include: [{
           model: User,
           as: 'User',
-          attributes: ['id', 'name', 'stars', 'category_tier', 'position', 'avatar']
+          attributes: ['id', 'name', 'stars', 'category_tier', 'position', 'avatar', 'avatar_seed']
         }]
       },
       {
@@ -158,6 +158,7 @@ function formatMatchResponse(match) {
     creator_name: matchData.Creator?.name,
     creator_category: matchData.Creator?.category_tier,
     creator_avatar: matchData.Creator?.avatar,
+    creator_avatar_seed: matchData.Creator?.avatar_seed || null,
     canonical_completion: matchData.CompetitiveResult
       ? {
           schema_version: 1,
@@ -180,6 +181,7 @@ function formatMatchResponse(match) {
       category: player.User?.category_tier,
       position: player.User?.position,
       avatar: player.User?.avatar,
+      avatar_seed: player.User?.avatar_seed || null,
       team: player.team,
       joined_at: player.createdAt,
       competitive_result: player.competitive_result,
@@ -256,7 +258,7 @@ router.get('/', auth, async (req, res) => {
         {
           model: User,
           as: 'Creator',
-          attributes: ['name', 'stars', 'category_tier', 'avatar']
+          attributes: ['name', 'stars', 'category_tier', 'avatar', 'avatar_seed']
         },
         {
           model: MatchPlayer,
@@ -300,6 +302,7 @@ router.get('/', auth, async (req, res) => {
         creator_name: matchData.Creator.name,
         creator_category: matchData.Creator.category_tier,
         creator_avatar: matchData.Creator.avatar,
+        creator_avatar_seed: matchData.Creator.avatar_seed || null,
         player_count: matchData.Players.length,
         pricing: buildMatchPricingSnapshot({
           totalCourtPrice: effectivePrice,

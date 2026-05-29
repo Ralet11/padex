@@ -171,6 +171,7 @@ export function toHeroVM({ identity, ratings, matches }) {
 
   return {
     avatar: identity?.avatar || null,
+    avatarSeed: identity?.avatar_seed || null,
     name: asText(identity?.name) || 'Jugador',
     handle: getHandle(identity),
     tier,
@@ -234,6 +235,7 @@ export function toProfileShellVM({ identity, ratings, matches }) {
 
   return {
     avatar: hero.avatar,
+    avatarSeed: hero.avatarSeed,
     name: hero.name,
     handle: hero.handle,
     bio: info.bio,

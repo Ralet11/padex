@@ -27,7 +27,7 @@ router.get('/:connectionId', auth, async (req, res) => {
       include: [{
         model: User,
         as: 'Sender',
-        attributes: ['name', 'avatar']
+        attributes: ['name', 'avatar', 'avatar_seed']
       }],
       order: [['createdAt', 'ASC']],
       limit: 100
@@ -42,7 +42,8 @@ router.get('/:connectionId', auth, async (req, res) => {
         read_at: dbMsg.read_at,
         created_at: dbMsg.createdAt,
         sender_name: dbMsg.Sender.name,
-        sender_avatar: dbMsg.Sender.avatar
+        sender_avatar: dbMsg.Sender.avatar,
+        sender_avatar_seed: dbMsg.Sender.avatar_seed || null,
       };
     });
 
@@ -94,7 +95,7 @@ router.post('/', auth, async (req, res) => {
       include: [{
         model: User,
         as: 'Sender',
-        attributes: ['name', 'avatar']
+        attributes: ['name', 'avatar', 'avatar_seed']
       }]
     });
 
@@ -106,7 +107,8 @@ router.post('/', auth, async (req, res) => {
       read_at: dbMsg.read_at,
       created_at: dbMsg.createdAt,
       sender_name: dbMsg.Sender.name,
-      sender_avatar: dbMsg.Sender.avatar
+      sender_avatar: dbMsg.Sender.avatar,
+      sender_avatar_seed: dbMsg.Sender.avatar_seed || null,
     };
 
     res.status(201).json({ message: formattedMsg });

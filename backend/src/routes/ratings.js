@@ -49,7 +49,7 @@ router.get('/:userId', auth, async (req, res) => {
       include: [{
         model: User,
         as: 'Rater',
-        attributes: ['id', 'name', 'avatar']
+        attributes: ['id', 'name', 'avatar', 'avatar_seed']
       }],
       order: [['createdAt', 'DESC']],
       limit: 30
@@ -64,7 +64,8 @@ router.get('/:userId', auth, async (req, res) => {
         created_at: dbRating.createdAt,
         rater_id: dbRating.Rater.id,
         rater_name: dbRating.Rater.name,
-        rater_avatar: dbRating.Rater.avatar
+        rater_avatar: dbRating.Rater.avatar,
+        rater_avatar_seed: dbRating.Rater.avatar_seed || null,
       };
     });
 
@@ -83,7 +84,7 @@ router.get('/:userId', auth, async (req, res) => {
         include: [{
           model: User,
           as: 'Rater',
-          attributes: ['id', 'name', 'avatar']
+          attributes: ['id', 'name', 'avatar', 'avatar_seed']
         }],
         order: [['createdAt', 'DESC']],
         limit: 30
@@ -98,7 +99,8 @@ router.get('/:userId', auth, async (req, res) => {
           created_at: dbRating.createdAt,
           rater_id: dbRating.Rater.id,
           rater_name: dbRating.Rater.name,
-          rater_avatar: dbRating.Rater.avatar
+          rater_avatar: dbRating.Rater.avatar,
+          rater_avatar_seed: dbRating.Rater.avatar_seed || null,
         };
       });
 

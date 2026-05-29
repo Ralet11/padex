@@ -115,7 +115,7 @@ export default function PlayerProfileScreen({ route, navigation }) {
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: footerBottomOffset + 32 }]} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={styles.hero}>
-          <Avatar name={profile.name} uri={profile.avatar} size={88} category={rank.name} />
+          <Avatar name={profile.name} uri={profile.avatar} avatar_seed={profile.avatar_seed} size={88} category={rank.name} />
           <Text style={[typography.h2, { color: colors.text.primary, marginTop: 14 }]}>{profile.name}</Text>
           <View style={[styles.catBadge, { backgroundColor: catColor + '22' }]}>
             <Text style={[typography.captionMedium, { color: catColor }]}>{rank.name}</Text>
@@ -171,7 +171,7 @@ export default function PlayerProfileScreen({ route, navigation }) {
             {ratings.slice(0, 5).map((r) => (
               <View key={r.id} style={[styles.ratingCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
                 <View style={styles.ratingLeft}>
-                  <Avatar name={r.rater_name} uri={r.rater_avatar} size={32} />
+                  <Avatar name={r.rater_name} uri={r.rater_avatar} avatar_seed={r.rater_avatar_seed} size={32} />
                   <Text style={[typography.captionMedium, { color: colors.text.primary }]}>{r.rater_name}</Text>
                 </View>
                 <View style={styles.ratingRight}>

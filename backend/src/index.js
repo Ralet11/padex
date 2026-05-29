@@ -177,7 +177,7 @@ io.on('connection', (socket) => {
       // Fetch with sender include
       const messageWithSender = await Message.findOne({
         where: { id: newMessage.id },
-        include: [{ model: User, as: 'Sender', attributes: ['name', 'avatar'] }]
+        include: [{ model: User, as: 'Sender', attributes: ['name', 'avatar', 'avatar_seed'] }]
       });
 
       // Broadcast to all members in the room.

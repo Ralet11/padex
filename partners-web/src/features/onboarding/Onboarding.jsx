@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   Building2,
@@ -804,6 +805,9 @@ const Onboarding = ({ onComplete }) => {
                   )}
                 </button>
               </div>
+              <p className="legal-copy">
+                Al continuar aceptas las <Link to="/politicas-de-privacidad">politicas de privacidad</Link>.
+              </p>
             </Motion.div>
           ) : null}
         </AnimatePresence>
@@ -1145,6 +1149,20 @@ const Onboarding = ({ onComplete }) => {
             }
             .button-spinner {
               margin-right: 8px;
+            }
+            .legal-copy {
+              margin-top: 18px;
+              color: var(--muted-foreground);
+              font-size: 0.82rem;
+              line-height: 1.5;
+            }
+            .legal-copy a {
+              color: white;
+              text-decoration: underline;
+              text-underline-offset: 3px;
+            }
+            .legal-copy a:hover {
+              color: var(--primary);
             }
             .spinning {
               animation: onboarding-spin 0.9s linear infinite;

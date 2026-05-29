@@ -1,28 +1,66 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
-import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Typography } from '../../components/ui/Typography';
-import AuthShell from '../../components/auth/AuthShell';
-import SocialAuthSection from '../../components/auth/SocialAuthSection';
+import AuthBrandHeader from '../../components/auth/AuthBrandHeader';
 
 const CATEGORIES = [
-  { value: 'principiante', label: 'Principiante', emoji: '\u{1F331}', elo: '~800' },
-  { value: 'intermedio', label: 'Intermedio', emoji: '\u{1F3AF}', elo: '~1000' },
-  { value: 'avanzado', label: 'Avanzado', emoji: '\u{1F525}', elo: '~1200' },
-  { value: 'profesional', label: 'Profesional', emoji: '\u{1F3C6}', elo: '~1500' },
+  { value: 'principiante', label: 'Principiante', icon: 'compass', elo: '~800', hint: 'Primeros partidos' },
+  { value: 'intermedio', label: 'Intermedio', icon: 'target', elo: '~1000', hint: 'Buen ritmo y control' },
+  { value: 'avanzado', label: 'Avanzado', icon: 'zap', elo: '~1200', hint: 'Mas velocidad y lectura' },
+  { value: 'profesional', label: 'Profesional', icon: 'award', elo: '~1500', hint: 'Nivel competitivo' },
 ];
 
 const POSITIONS = [
-  { value: 'drive', label: 'Drive', emoji: '\u{1F448}' },
-  { value: 'reves', label: 'Reves', emoji: '\u{1F449}' },
+  { value: 'drive', label: 'Drive', icon: 'arrow-right-circle', hint: 'Juego mas directo' },
+  { value: 'reves', label: 'Reves', icon: 'arrow-left-circle', hint: 'Mas control y armado' },
 ];
+
+const DARK_INPUT = {
+  containerStyle: {
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+  },
+  inputStyle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+  },
+  labelStyle: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.2,
+    textTransform: 'none',
+    marginLeft: 2,
+    marginBottom: 8,
+  },
+  placeholderTextColor: 'rgba(255,255,255,0.32)',
+  idleBorderColor: 'rgba(255,255,255,0.1)',
+  iconColor: 'rgba(255,255,255,0.55)',
+};
 
 export default function RegisterScreen({ navigation }) {
   const { register } = useAuth();
-  const { colors, spacing, radius } = useTheme();
+  const { colors } = useTheme();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -44,462 +82,551 @@ export default function RegisterScreen({ navigation }) {
 
   function validateStep1() {
     const nextErrors = {};
-
-    if (!form.name.trim()) nextErrors.name = 'El nombre es requerido';
     if (!form.email.trim()) nextErrors.email = 'El email es requerido';
     else if (!/\S+@\S+\.\S+/.test(form.email)) nextErrors.email = 'Email invalido';
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function validateStep2() {
+    const nextErrors = {};
     if (!form.password) nextErrors.password = 'La contrasena es requerida';
     else if (form.password.length < 6) nextErrors.password = 'Minimo 6 caracteres';
     if (!form.confirmPassword) nextErrors.confirmPassword = 'Confirma la contrasena';
-    else if (form.password !== form.confirmPassword) nextErrors.confirmPassword = 'Las contrasenas no coinciden';
+    else if (form.password !== form.confirmPassword)
+      nextErrors.confirmPassword = 'Las contrasenas no coinciden';
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
 
+  function validateStep3() {
+    const nextErrors = {};
+    if (!form.name.trim()) nextErrors.name = 'El nombre es requerido';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
 
   function goNext() {
     if (step === 1 && validateStep1()) setStep(2);
+    else if (step === 2 && validateStep2()) setStep(3);
+  }
+
+  function handleBack() {
+    if (step === 1) navigation.goBack();
+    else setStep((current) => current - 1);
   }
 
   async function handleRegister() {
+    if (!validateStep3()) return;
+
     setLoading(true);
     try {
       await register(form);
     } catch (err) {
       Alert.alert('Error', err.message);
-      setStep(1);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <AuthShell
-      headerTitle="Crear cuenta"
-      onBackPress={() => (step === 1 ? navigation.goBack() : setStep(1))}
-      title={step === 1 ? 'Tus datos' : 'Perfil de juego'}
-      subtitle={
-        step === 1
-          ? 'Creamos tu acceso y despues terminamos de ajustar tu nivel.'
-          : 'Defini tu perfil inicial para entrar con mejores cruces.'
-      }
-      headerContent={
-        <View style={styles.heroContent}>
-          <View
-            style={[
-              styles.stepChip,
-              {
-                borderColor: `${colors.accent}34`,
-                backgroundColor: `${colors.accent}16`,
-              },
-            ]}
-          >
-            <Typography variant="captionMedium" style={{ color: colors.accent }}>
-              PASO {step} DE 2
-            </Typography>
-          </View>
-
-          <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
-          <Typography variant="h2" style={styles.heroTitle}>
-            Empeza tu perfil
-          </Typography>
-          <Typography variant="body" style={styles.heroCopy}>
-            Armamos tu acceso y tu nivel inicial para darte mejores cruces desde el primer partido.
-          </Typography>
-
-          <View style={styles.heroFeatureRow}>
-            {['Acceso', 'Nivel', 'Posicion'].map((label) => (
-              <View key={label} style={styles.heroFeatureChip}>
-                <Typography variant="captionMedium" style={styles.heroFeatureText}>
-                  {label}
-                </Typography>
-              </View>
-            ))}
-          </View>
-        </View>
-      }
-      footer={
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.loginBtn}
-          activeOpacity={0.75}
+    <View style={styles.root}>
+      <StatusBar style="light" hidden={false} />
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          style={styles.flex}
         >
-          <Typography variant="bodyMedium" align="center" style={{ color: colors.text.secondary }}>
-            Ya tenes cuenta?{' '}
-            <Typography variant="bodyBold" style={{ color: colors.accent }}>
-              Iniciar sesion
-            </Typography>
-          </Typography>
-        </TouchableOpacity>
-      }
-      scrollContentStyle={step === 2 ? { paddingTop: spacing.md, paddingBottom: spacing.xl } : null}
-    >
-      <View style={[styles.steps, { marginBottom: spacing.lg }]}>
-        {[1, 2].map((item) => (
-          <View
-            key={item}
-            style={[
-              styles.step,
-              {
-                backgroundColor: item <= step ? '#111214' : '#E5E7EC',
-                borderRadius: radius.full,
-              },
-            ]}
-          />
-        ))}
-      </View>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={styles.flex}>
+              <AuthBrandHeader onBack={handleBack} size="sm" />
 
-      {step === 1 ? (
-        <>
-          <SocialAuthSection caption="o crea tu cuenta con" density="compact" />
+              <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.stepRow}>
+                  {[1, 2, 3].map((item) => (
+                    <View
+                      key={item}
+                      style={[
+                        styles.stepBar,
+                        {
+                          backgroundColor:
+                            item <= step ? colors.accent : 'rgba(255,255,255,0.12)',
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
 
-          <Typography variant="caption" style={[styles.socialHint, { marginTop: spacing.sm, marginBottom: spacing.lg }]}>
-            Despues podes completar tu nivel y posicion desde la app.
-          </Typography>
-
-          <Input
-            label="Nombre completo"
-            value={form.name}
-            onChangeText={(value) => update('name', value)}
-            placeholder="Juan Perez"
-            error={errors.name}
-            autoComplete="name"
-            textContentType="name"
-            labelStyle={styles.fieldLabel}
-            containerStyle={styles.fieldContainer}
-            inputStyle={styles.fieldInput}
-            placeholderTextColor="#B8BEC8"
-            returnKeyType="next"
-          />
-          <Input
-            label="Email"
-            value={form.email}
-            onChangeText={(value) => update('email', value)}
-            placeholder="tu@email.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="emailAddress"
-            error={errors.email}
-            labelStyle={styles.fieldLabel}
-            containerStyle={styles.fieldContainer}
-            inputStyle={styles.fieldInput}
-            placeholderTextColor="#B8BEC8"
-            returnKeyType="next"
-          />
-          <Input
-            label="Contrasena"
-            value={form.password}
-            onChangeText={(value) => update('password', value)}
-            placeholder="Minimo 6 caracteres"
-            secureTextEntry
-            autoCorrect={false}
-            autoComplete="new-password"
-            textContentType="newPassword"
-            error={errors.password}
-            labelStyle={styles.fieldLabel}
-            containerStyle={styles.fieldContainer}
-            inputStyle={styles.fieldInput}
-            placeholderTextColor="#B8BEC8"
-            returnKeyType="next"
-          />
-          <Input
-            label="Confirmar contrasena"
-            value={form.confirmPassword}
-            onChangeText={(value) => update('confirmPassword', value)}
-            placeholder="Repite tu contrasena"
-            secureTextEntry
-            autoCorrect={false}
-            autoComplete="new-password"
-            textContentType="password"
-            error={errors.confirmPassword}
-            labelStyle={styles.fieldLabel}
-            containerStyle={styles.fieldContainer}
-            inputStyle={styles.fieldInput}
-            placeholderTextColor="#B8BEC8"
-            returnKeyType="done"
-            onSubmitEditing={goNext}
-          />
-
-          <Button
-            title="Continuar"
-            onPress={goNext}
-            size="lg"
-            textColor="#FFFFFF"
-            style={[styles.primaryBtn, { marginTop: spacing.md }]}
-            textStyle={styles.primaryBtnText}
-          />
-        </>
-      ) : (
-        <>
-          <Typography variant="label" style={styles.sectionLabel}>
-            Elegi tu nivel
-          </Typography>
-          <Typography variant="caption" style={styles.sectionCopy}>
-            Esto define tu punto de partida y luego se ajusta con tus partidos.
-          </Typography>
-
-          <View style={styles.grid}>
-            {CATEGORIES.map((category) => {
-              const isSelected = form.self_category === category.value;
-              return (
-                <TouchableOpacity
-                  key={category.value}
-                  activeOpacity={0.82}
-                  style={[
-                    styles.optionCard,
-                    {
-                      borderColor: isSelected ? '#111214' : '#ECEEF3',
-                      backgroundColor: isSelected ? '#111214' : '#FBFBFD',
-                      borderRadius: radius.lg,
-                    },
-                  ]}
-                  onPress={() => update('self_category', category.value)}
-                >
-                  <Typography style={styles.optionEmoji}>{category.emoji}</Typography>
-                  <Typography
-                    variant="bodyBold"
-                    style={{ color: isSelected ? '#FFFFFF' : '#17181B', fontSize: 13 }}
-                  >
-                    {category.label}
-                  </Typography>
+                <View style={styles.intro}>
                   <View
                     style={[
-                      styles.eloPill,
+                      styles.stepChip,
                       {
-                        backgroundColor: isSelected ? `${colors.accent}26` : '#F1F3F7',
+                        borderColor: `${colors.accent}45`,
+                        backgroundColor: `${colors.accent}1A`,
                       },
                     ]}
                   >
-                    <Typography
-                      variant="caption"
-                      style={{ color: isSelected ? colors.accent : '#6A7280' }}
-                    >
-                      {category.elo} ELO
+                    <Typography variant="captionMedium" style={{ color: colors.accent, fontSize: 11, letterSpacing: 0.4 }}>
+                      PASO {step} DE 3
                     </Typography>
                   </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
 
-          <Typography variant="label" style={[styles.sectionLabel, { marginTop: spacing.lg }]}>
-            Tu lado favorito
-          </Typography>
-
-          <View style={styles.row}>
-            {POSITIONS.map((position) => {
-              const isSelected = form.position === position.value;
-              return (
-                <TouchableOpacity
-                  key={position.value}
-                  activeOpacity={0.82}
-                  style={[
-                    styles.posCard,
-                    {
-                      borderColor: isSelected ? '#111214' : '#ECEEF3',
-                      backgroundColor: isSelected ? '#111214' : '#FBFBFD',
-                      borderRadius: radius.lg,
-                    },
-                  ]}
-                  onPress={() => update('position', position.value)}
-                >
-                  <Typography style={styles.optionEmoji}>{position.emoji}</Typography>
-                  <Typography variant="bodyBold" style={{ color: isSelected ? '#FFFFFF' : '#17181B' }}>
-                    {position.label}
+                  <Typography variant="h1" align="center" style={styles.title}>
+                    {step === 1
+                      ? 'Crea tu cuenta'
+                      : step === 2
+                        ? 'Protege tu acceso'
+                        : 'Completa tu perfil'}
                   </Typography>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                  <Typography variant="body" align="center" style={styles.subtitle}>
+                    {step === 1
+                      ? 'Primero necesitamos tu email.'
+                      : step === 2
+                        ? 'Ahora crea y confirma tu contrasena.'
+                        : 'Sumamos tu nombre, nivel y preferencias para arrancar bien.'}
+                  </Typography>
+                </View>
 
-          <Input
-            label="Paleta que usas (opcional)"
-            value={form.paddle_brand}
-            onChangeText={(value) => update('paddle_brand', value)}
-            placeholder="Ej: Head Alpha"
-            labelStyle={styles.fieldLabel}
-            containerStyle={[styles.fieldContainer, { marginTop: spacing.lg }]}
-            inputStyle={styles.fieldInput}
-            placeholderTextColor="#B8BEC8"
-          />
+                {step === 1 ? (
+                  <View style={styles.form}>
+                    <Input
+                      label="Email"
+                      value={form.email}
+                      onChangeText={(value) => update('email', value)}
+                      placeholder="tu@email.com"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="email"
+                      textContentType="emailAddress"
+                      error={errors.email}
+                      returnKeyType="next"
+                      focusedBorderColor={colors.accent}
+                      {...DARK_INPUT}
+                    />
 
-          <View style={styles.btnRow}>
-            <Button
-              title="Atras"
-              onPress={() => setStep(1)}
-              variant="outline"
-              style={styles.secondaryBtn}
-              textStyle={styles.secondaryBtnText}
-            />
-            <Button
-              title="Crear cuenta"
-              onPress={handleRegister}
-              loading={loading}
-              textColor="#FFFFFF"
-              loadingColor="#FFFFFF"
-              style={styles.primaryWideBtn}
-              textStyle={styles.primaryBtnText}
-            />
-          </View>
-        </>
-      )}
-    </AuthShell>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={goNext}
+                      style={({ pressed }) => [
+                        styles.primaryBtn,
+                        { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 },
+                      ]}
+                    >
+                      <Typography variant="bodyBold" align="center" style={styles.primaryBtnText}>
+                        Continuar
+                      </Typography>
+                    </Pressable>
+                  </View>
+                ) : step === 2 ? (
+                  <View style={styles.form}>
+                    <Input
+                      label="Contrasena"
+                      value={form.password}
+                      onChangeText={(value) => update('password', value)}
+                      placeholder="Minimo 6 caracteres"
+                      secureTextEntry
+                      autoCorrect={false}
+                      autoComplete="new-password"
+                      textContentType="newPassword"
+                      error={errors.password}
+                      returnKeyType="next"
+                      focusedBorderColor={colors.accent}
+                      {...DARK_INPUT}
+                    />
+                    <Input
+                      label="Confirmar contrasena"
+                      value={form.confirmPassword}
+                      onChangeText={(value) => update('confirmPassword', value)}
+                      placeholder="Repite tu contrasena"
+                      secureTextEntry
+                      autoCorrect={false}
+                      autoComplete="new-password"
+                      textContentType="password"
+                      error={errors.confirmPassword}
+                      returnKeyType="done"
+                      onSubmitEditing={goNext}
+                      focusedBorderColor={colors.accent}
+                      {...DARK_INPUT}
+                    />
+
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={goNext}
+                      style={({ pressed }) => [
+                        styles.primaryBtn,
+                        { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 },
+                      ]}
+                    >
+                      <Typography variant="bodyBold" align="center" style={styles.primaryBtnText}>
+                        OK
+                      </Typography>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.form}>
+                    <Input
+                      label="Nombre completo"
+                      value={form.name}
+                      onChangeText={(value) => update('name', value)}
+                      placeholder="Juan Perez"
+                      error={errors.name}
+                      autoComplete="name"
+                      textContentType="name"
+                      returnKeyType="next"
+                      focusedBorderColor={colors.accent}
+                      {...DARK_INPUT}
+                    />
+
+                    <View style={styles.panel}>
+                      <Typography variant="captionMedium" style={styles.sectionEyebrow}>
+                        NIVEL INICIAL
+                      </Typography>
+                      <Typography variant="captionMedium" style={styles.sectionLabel}>
+                        Elegi tu nivel
+                      </Typography>
+                      <Typography variant="caption" style={styles.sectionCopy}>
+                        Define tu punto de partida y se ajusta con tus partidos.
+                      </Typography>
+
+                      <View style={styles.grid}>
+                        {CATEGORIES.map((category) => {
+                          const isSelected = form.self_category === category.value;
+                          return (
+                            <TouchableOpacity
+                              key={category.value}
+                              activeOpacity={0.82}
+                              style={[
+                                styles.optionCard,
+                                isSelected ? styles.optionCardSelected : null,
+                                {
+                                  borderColor: isSelected
+                                    ? colors.accent
+                                    : 'rgba(255,255,255,0.1)',
+                                  backgroundColor: isSelected
+                                    ? 'rgba(216, 255, 64, 0.08)'
+                                    : 'rgba(255,255,255,0.04)',
+                                },
+                              ]}
+                              onPress={() => update('self_category', category.value)}
+                            >
+                              <View
+                                style={[
+                                  styles.optionIconBadge,
+                                  {
+                                    backgroundColor: isSelected
+                                      ? `${colors.accent}22`
+                                      : 'rgba(255,255,255,0.06)',
+                                  },
+                                ]}
+                              >
+                                <Feather
+                                  name={category.icon}
+                                  size={18}
+                                  color={isSelected ? colors.accent : 'rgba(255,255,255,0.72)'}
+                                />
+                              </View>
+                              <Typography variant="bodyBold" style={styles.optionTitle}>
+                                {category.label}
+                              </Typography>
+                              <Typography variant="caption" style={styles.optionHint}>
+                                {category.hint}
+                              </Typography>
+                              <View
+                                style={[
+                                  styles.eloPill,
+                                  {
+                                    backgroundColor: isSelected
+                                      ? `${colors.accent}26`
+                                      : 'rgba(255,255,255,0.06)',
+                                  },
+                                ]}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  style={[
+                                    styles.eloText,
+                                    { color: isSelected ? colors.accent : 'rgba(255,255,255,0.6)' },
+                                  ]}
+                                >
+                                  {category.elo} ELO
+                                </Typography>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.panel}>
+                      <Typography variant="captionMedium" style={styles.sectionEyebrow}>
+                        PREFERENCIAS
+                      </Typography>
+                      <Typography variant="captionMedium" style={styles.sectionLabel}>
+                        Tu lado favorito
+                      </Typography>
+
+                      <View style={styles.row}>
+                        {POSITIONS.map((position) => {
+                          const isSelected = form.position === position.value;
+                          return (
+                            <TouchableOpacity
+                              key={position.value}
+                              activeOpacity={0.82}
+                              style={[
+                                styles.posCard,
+                                isSelected ? styles.optionCardSelected : null,
+                                {
+                                  borderColor: isSelected
+                                    ? colors.accent
+                                    : 'rgba(255,255,255,0.1)',
+                                  backgroundColor: isSelected
+                                    ? 'rgba(216, 255, 64, 0.08)'
+                                    : 'rgba(255,255,255,0.04)',
+                                },
+                              ]}
+                              onPress={() => update('position', position.value)}
+                            >
+                              <View
+                                style={[
+                                  styles.optionIconBadge,
+                                  styles.positionIconBadge,
+                                  {
+                                    backgroundColor: isSelected
+                                      ? `${colors.accent}22`
+                                      : 'rgba(255,255,255,0.06)',
+                                  },
+                                ]}
+                              >
+                                <Feather
+                                  name={position.icon}
+                                  size={18}
+                                  color={isSelected ? colors.accent : 'rgba(255,255,255,0.72)'}
+                                />
+                              </View>
+                              <Typography variant="bodyBold" style={styles.optionTitle}>
+                                {position.label}
+                              </Typography>
+                              <Typography variant="caption" style={styles.optionHint}>
+                                {position.hint}
+                              </Typography>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={{ marginTop: 22 }}>
+                      <Input
+                        label="Paleta que usas (opcional)"
+                        value={form.paddle_brand}
+                        onChangeText={(value) => update('paddle_brand', value)}
+                        placeholder="Ej: Head Alpha"
+                        focusedBorderColor={colors.accent}
+                        {...DARK_INPUT}
+                      />
+                    </View>
+
+                    <View style={styles.btnRow}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setStep(2)}
+                        style={({ pressed }) => [
+                          styles.secondaryBtn,
+                          { opacity: pressed ? 0.85 : 1 },
+                        ]}
+                      >
+                        <Typography variant="bodyBold" align="center" style={styles.secondaryBtnText}>
+                          Atras
+                        </Typography>
+                      </Pressable>
+
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={handleRegister}
+                        disabled={loading}
+                        style={({ pressed }) => [
+                          styles.primaryWideBtn,
+                          {
+                            backgroundColor: colors.accent,
+                            opacity: loading ? 0.7 : pressed ? 0.9 : 1,
+                          },
+                        ]}
+                      >
+                        {loading ? (
+                          <ActivityIndicator color="#000000" size="small" />
+                        ) : (
+                          <Typography variant="bodyBold" align="center" style={styles.primaryBtnText}>
+                            Crear cuenta
+                          </Typography>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={styles.footer}
+                activeOpacity={0.7}
+              >
+                <Typography variant="bodyMedium" align="center" style={styles.footerText}>
+                  Ya tenes cuenta?{' '}
+                  <Typography variant="bodyBold" style={{ color: colors.accent }}>
+                    Iniciar sesion
+                  </Typography>
+                </Typography>
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  heroContent: {
-    width: '100%',
-    paddingTop: 10,
-    paddingHorizontal: 2,
-    alignItems: 'flex-start',
+  root: {
+    flex: 1,
+    backgroundColor: '#0B0B0D',
   },
-  stepChip: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
+  safe: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
   },
-  heroAccent: {
-    marginTop: 14,
-    borderRadius: 999,
-    width: 38,
-    height: 4,
+  flex: {
+    flex: 1,
   },
-  heroTitle: {
-    marginTop: 14,
-    color: '#FFFFFF',
-    letterSpacing: -0.8,
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: 20,
+    paddingBottom: 24,
   },
-  heroCopy: {
-    marginTop: 8,
-    color: 'rgba(255,255,255,0.72)',
-    lineHeight: 19,
-    maxWidth: 258,
-  },
-  heroFeatureRow: {
-    marginTop: 16,
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  heroFeatureChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  heroFeatureText: {
-    color: 'rgba(255,255,255,0.82)',
-  },
-  steps: {
+  stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    marginBottom: 22,
   },
-  step: {
-    width: 38,
-    height: 5,
+  stepBar: {
+    width: 36,
+    height: 4,
+    borderRadius: 999,
   },
-  socialHint: {
-    color: '#8D94A0',
-    textAlign: 'center',
+  intro: {
+    marginBottom: 24,
+    paddingHorizontal: 4,
+    alignItems: 'center',
   },
-  fieldLabel: {
-    marginLeft: 2,
-    marginBottom: 8,
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0,
-    textTransform: 'none',
-    color: '#3F4652',
-  },
-  fieldContainer: {
-    height: 56,
+  stepChip: {
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#EEF0F4',
-    borderRadius: 16,
-    backgroundColor: '#FBFBFD',
-    shadowColor: '#111827',
-    shadowOpacity: 0.04,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 1,
+    marginBottom: 12,
   },
-  fieldInput: {
-    fontSize: 15,
-    color: '#16181D',
-  },
-  primaryBtn: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#111214',
-  },
-  primaryWideBtn: {
-    flex: 2,
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#111214',
-  },
-  primaryBtnText: {
-    fontSize: 15,
-    letterSpacing: 0.1,
+  title: {
     color: '#FFFFFF',
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.7,
   },
-  secondaryBtn: {
-    flex: 1,
-    height: 54,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#D9DEE7',
-  },
-  secondaryBtnText: {
-    color: '#17181B',
+  subtitle: {
+    marginTop: 8,
+    color: 'rgba(255,255,255,0.65)',
     fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: 12,
+  },
+  form: {
+    width: '100%',
+    gap: 4,
+  },
+  panel: {
+    marginTop: 18,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.025)',
+  },
+  sectionEyebrow: {
+    marginBottom: 8,
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    letterSpacing: 1.2,
   },
   sectionLabel: {
-    marginBottom: 6,
-    color: '#3F4652',
-    letterSpacing: 0.3,
+    marginBottom: 4,
+    color: '#FFFFFF',
+    fontSize: 15,
+    letterSpacing: 0.2,
   },
   sectionCopy: {
     marginBottom: 14,
-    color: '#7D8696',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    lineHeight: 16,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 2,
   },
   optionCard: {
     width: '48%',
-    paddingHorizontal: 12,
+    minHeight: 146,
+    paddingHorizontal: 14,
     paddingVertical: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    alignItems: 'center',
+    overflow: 'hidden',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: 10,
-    shadowColor: '#111827',
-    shadowOpacity: 0.03,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 1,
   },
-  optionEmoji: {
-    fontSize: 24,
-    marginBottom: 6,
+  optionCardSelected: {
+    borderWidth: 1.5,
+  },
+  optionIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  positionIconBadge: {
+    marginBottom: 14,
+  },
+  optionTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
+  optionHint: {
+    marginTop: 4,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    lineHeight: 15,
   },
   eloPill: {
     marginTop: 8,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 999,
+  },
+  eloText: {
+    fontSize: 11,
   },
   row: {
     flexDirection: 'row',
@@ -507,22 +634,63 @@ const styles = StyleSheet.create({
   },
   posCard: {
     flex: 1,
+    minHeight: 126,
     padding: 16,
+    borderRadius: 18,
     borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  primaryBtn: {
+    marginTop: 14,
+    height: 54,
+    borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#111827',
-    shadowOpacity: 0.03,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 1,
+    justifyContent: 'center',
+  },
+  primaryBtnText: {
+    color: '#000000',
+    fontSize: 15,
+    letterSpacing: 0.1,
+  },
+  primaryWideBtn: {
+    flex: 2,
+    height: 54,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtn: {
+    flex: 1,
+    height: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    letterSpacing: 0.1,
   },
   btnRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 20,
+    marginTop: 22,
   },
-  loginBtn: {
+  footer: {
+    marginTop: 8,
+    paddingTop: 14,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
     alignItems: 'center',
-    marginTop: 24,
+  },
+  footerText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 14,
   },
 });

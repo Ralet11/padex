@@ -5,6 +5,7 @@ const { User } = require('../models');
 const { starsFromSelfCategory, categoryFromStars } = require('../services/elo');
 const auth = require('../middleware/auth');
 const { buildCanonicalUserPayload } = require('../services/competitive/userContracts');
+const { AccountDeletionError, deleteAccountForUser } = require('../services/accountDeletion');
 const {
   SocialAuthError,
   issueAuthToken,
@@ -116,6 +117,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales invalidas' });
     }
 
+    if (user.deleted_at) {
+      return res.status(403).json({ error: 'Esta cuenta fue eliminada' });
+    }
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       console.warn(`[auth.login] [${req.requestId}] invalid password`, {
@@ -205,6 +210,35 @@ router.get('/me', auth, async (req, res) => {
     res.json({ user: buildCanonicalUserPayload(user) });
   } catch (err) {
     console.error(`[auth.me] [${req.requestId}] error`);
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/delete-account', auth, async (req, res) => {
+  try {
+    if (req.body?.confirmation !== 'DELETE') {
+      return res.status(400).json({
+        error: 'Debes confirmar la eliminacion de la cuenta',
+        code: 'account_deletion_confirmation_required',
+      });
+    }
+
+    const result = await deleteAccountForUser({
+      userId: req.user.id,
+      requestId: req.requestId,
+    });
+
+    res.json({
+      success: true,
+      deleted_at: result.deletedAt,
+    });
+  } catch (err) {
+    if (err instanceof AccountDeletionError) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+
+    console.error(`[auth.delete-account] [${req.requestId}] error`);
     console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }

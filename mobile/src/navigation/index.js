@@ -10,6 +10,7 @@ import { colors, radius } from '../theme';
 // Screens
 import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
+import EmailLoginScreen from '../screens/auth/EmailLoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import MatchDetailScreen from '../screens/home/MatchDetailScreen';
@@ -26,7 +27,8 @@ import LeaderboardScreen from '../screens/leaderboard/LeaderboardScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const NAV_BAR_COLOR = '#000000';
-const AUTH_STATUS_BAR_COLOR = '#050510';
+const AUTH_BACKGROUND = '#0B0B0D';
+const AUTH_STATUS_BAR_COLOR = '#0B0B0D';
 
 const screenOptions = {
   headerStyle: { backgroundColor: colors.background },
@@ -46,7 +48,7 @@ const authScreenOptions = {
   animationDuration: 260,
   gestureEnabled: true,
   fullScreenGestureEnabled: true,
-  contentStyle: { backgroundColor: colors.background },
+  contentStyle: { backgroundColor: AUTH_BACKGROUND },
   navigationBarColor: NAV_BAR_COLOR,
   navigationBarHidden: false,
   statusBarColor: AUTH_STATUS_BAR_COLOR,
@@ -169,6 +171,7 @@ export default function AppNavigator() {
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} options={authScreenOptions} />
+            <Stack.Screen name="EmailLogin" component={EmailLoginScreen} options={authScreenOptions} />
             <Stack.Screen name="Register" component={RegisterScreen} options={authScreenOptions} />
           </>
         )}

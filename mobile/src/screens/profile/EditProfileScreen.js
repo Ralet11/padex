@@ -97,7 +97,7 @@ export default function EditProfileScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <Avatar name={user?.name} src={user?.avatar} size={100} />
+          <Avatar name={user?.name} src={user?.avatar} avatarSeed={user?.avatar_seed} size={100} />
           <TouchableOpacity
             style={[styles.changePhotoBtn, { borderColor: colors.borderLight, backgroundColor: colors.surfaceHighlight }]}
             onPress={handlePickAvatar}

@@ -279,6 +279,22 @@ export default function HomeLanding() {
             </div>
           </section>
         </main>
+
+        <footer className="homeFooter">
+          <div className="homeFooterBrand">
+            <span className="homeFooterWord">PADEX</span>
+            <span className="homeFooterCopy">Experiencia de padel para jugadores y clubes.</span>
+          </div>
+
+          <nav className="homeFooterNav" aria-label="Legal">
+            <Link to="/politicas-de-privacidad" className="homeFooterLink">
+              Politica de privacidad
+            </Link>
+            <Link to="/eliminar-cuenta" className="homeFooterLink">
+              Eliminar cuenta
+            </Link>
+          </nav>
+        </footer>
       </div>
     </div>
   );

@@ -21,7 +21,7 @@ export default function PlayerCard({ player, onPress, actionButton }) {
   return (
     <TouchableOpacity style={[styles.card, { borderBottomColor: colors.borderLight }]} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.left}>
-        <Avatar name={player.name} uri={player.avatar} size={52} category={rank.name} />
+        <Avatar name={player.name} uri={player.avatar} avatar_seed={player.avatar_seed} size={52} category={rank.name} />
         <View style={styles.info}>
           <Text style={[typography.bodyBold, { color: colors.text.primary, marginBottom: 2 }]} numberOfLines={1}>{player.name}</Text>
           <View style={styles.tags}>

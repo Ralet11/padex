@@ -41,7 +41,7 @@ export default function ProfileHeroSection({ hero, loading, error, onRetry, onOp
       {error ? <InlineError message={error} onRetry={onRetry} style={{ marginBottom: spacing.md }} /> : null}
 
       <View style={styles.header}>
-        <Avatar src={hero?.avatar} name={hero?.name} size={84} />
+        <Avatar src={hero?.avatar} name={hero?.name} avatarSeed={hero?.avatarSeed} size={84} />
         <Text style={[typography.h2, styles.name, { color: colors.text.primary }]} accessibilityRole="header">
           {hero?.name || 'Jugador'}
         </Text>

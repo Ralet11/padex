@@ -18,6 +18,10 @@ export const Input = ({
     errorStyle,
     onFocus,
     onBlur,
+    idleBorderColor,
+    focusedBorderColor,
+    errorBorderColor,
+    iconColor,
     ...props
 }) => {
     const { colors, spacing, radius } = useTheme();
@@ -38,10 +42,12 @@ export const Input = ({
     };
 
     const getBorderColor = () => {
-        if (error) return colors.danger;
-        if (isFocused) return colors.primary;
-        return colors.border;
+        if (error) return errorBorderColor || colors.danger;
+        if (isFocused) return focusedBorderColor || colors.primary;
+        return idleBorderColor || colors.border;
     };
+
+    const resolvedIconColor = iconColor || colors.text.secondary;
 
     return (
         <View style={[styles.container, style]}>
@@ -85,9 +91,9 @@ export const Input = ({
                         style={styles.rightIcon}
                     >
                         {isPasswordVisible ? (
-                            <EyeOff color={colors.text.secondary} size={20} />
+                            <EyeOff color={resolvedIconColor} size={20} />
                         ) : (
-                            <Eye color={colors.text.secondary} size={20} />
+                            <Eye color={resolvedIconColor} size={20} />
                         )}
                     </TouchableOpacity>
                 ) : rightIcon ? (

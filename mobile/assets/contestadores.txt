@@ -1,0 +1,34 @@
+Carlos Sebastian Eze Romero
+D.N.I 37678574Nacido el 21/04/1993Estado Civil: Otros
+
+Calificación: SIN SEGMENTOF.F: -
+
+Sin Cargo en Sin Empresa (SIN CATEGORIZAR)
+
+Email: (sin email)
+
+llamar viernes 29 carlos
+1526660922
+celu 2500 000 quiere cambiarse del frances si o si
+
+
+1559322741
+03584641802
+03414250250
+02994491100
+52800602
+0249154313068
+30718459873
+
+
+www.jugoscipolletti.com.ar
+
+npm run webbeds:hotels:safe-sync -- \
+  --country 102 \
+  --drain \
+  --batchSize 200 \
+  --onlyWithoutHotels \
+  --resultsPerPage 10 \
+  --heapMb 1536 \
+  --minAvailableMb 250 \
+  --pauseMs 1500

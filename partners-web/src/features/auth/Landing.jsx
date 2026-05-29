@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { Mail, Lock, ChevronRight, Trophy, Smartphone, ShieldCheck } from 'lucide-react';
 import { api } from '../../lib/runtime';
 import ballMark from '../../assets/ball-mark.png';
@@ -14,9 +15,9 @@ const Landing = ({ onLogin }) => {
     setIsLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password });
-      onLogin(response.data); // Pass user and token
+      onLogin(response.data);
     } catch (err) {
-      alert('Error en el login: ' + (err.response?.data?.error || 'Credenciales inválidas'));
+      alert(`Error en el login: ${err.response?.data?.error || 'Credenciales invalidas'}`);
     } finally {
       setIsLoading(false);
     }
@@ -24,23 +25,29 @@ const Landing = ({ onLogin }) => {
 
   return (
     <div className="landing-layout">
-      {/* Left Side: Content */}
       <section className="landing-content">
         <div className="branding">
           <span className="brand-badge">
             <img src={ballMark} alt="Padex" className="brand-ball" />
           </span>
-          <span>PADEX <strong>PARTNERS</strong></span>
+          <span>
+            PADEX <strong>PARTNERS</strong>
+          </span>
         </div>
 
-        <Motion.div 
+        <Motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="hero-text"
         >
-          <h1>Lleva tu club al <span>siguiente nivel</span>.</h1>
-          <p>La plataforma definitiva para managers de pádel. Gestión inteligente, automatización y una experiencia premium para tus jugadores.</p>
+          <h1>
+            Lleva tu club al <span>siguiente nivel</span>.
+          </h1>
+          <p>
+            La plataforma definitiva para managers de padel. Gestion inteligente,
+            automatizacion y una experiencia premium para tus jugadores.
+          </p>
         </Motion.div>
 
         <div className="features-grid">
@@ -55,7 +62,7 @@ const Landing = ({ onLogin }) => {
             <Smartphone className="icon" size={24} />
             <div>
               <h3>App Integrada</h3>
-              <p>Tus turnos aparecen automáticamente en la app de Padex.</p>
+              <p>Tus turnos aparecen automaticamente en la app de Padex.</p>
             </div>
           </div>
           <div className="feature-item">
@@ -68,9 +75,8 @@ const Landing = ({ onLogin }) => {
         </div>
       </section>
 
-      {/* Right Side: Login */}
       <section className="landing-auth glass">
-        <Motion.div 
+        <Motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="auth-card"
@@ -83,128 +89,141 @@ const Landing = ({ onLogin }) => {
               <label>Email</label>
               <div className="input-wrapper">
                 <Mail size={18} className="icon" />
-                <input 
-                  type="email" 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="manager@tuclub.com"
-                  required 
+                  required
                 />
               </div>
             </div>
 
             <div className="input-field">
-              <label>Contraseña</label>
+              <label>Contrasena</label>
               <div className="input-wrapper">
                 <Lock size={18} className="icon" />
-                <input 
-                  type="password" 
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
-                  placeholder="••••••••"
-                  required 
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="********"
+                  required
                 />
               </div>
             </div>
 
             <button type="submit" className="btn-primary" disabled={isLoading}>
-              {isLoading ? "Iniciando sesión..." : "Entrar al Panel"}
+              {isLoading ? 'Iniciando sesion...' : 'Entrar al Panel'}
               {!isLoading && <ChevronRight size={18} />}
             </button>
           </form>
 
           <div className="auth-footer">
-            <p>¿No tienes una cuenta? Contacta con soporte@padex.com</p>
+            <p>No tienes una cuenta? Contacta con soporte@padex.com</p>
+            <p>
+              Al ingresar aceptas nuestras{' '}
+              <Link to="/politicas-de-privacidad" className="auth-footerLink">
+                politicas de privacidad
+              </Link>
+              .
+            </p>
           </div>
         </Motion.div>
       </section>
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .landing-layout { 
-          display: grid; 
-          grid-template-columns: 1fr 480px; 
-          min-height: 100vh;
-          background: #09090b;
-        }
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            .landing-layout {
+              display: grid;
+              grid-template-columns: 1fr 480px;
+              min-height: 100vh;
+              background: #09090b;
+            }
 
-        .landing-content {
-          padding: 64px 80px;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          position: relative;
-          background: radial-gradient(circle at 0% 0%, #1a1a1c, #09090b);
-        }
+            .landing-content {
+              padding: 64px 80px;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              position: relative;
+              background: radial-gradient(circle at 0% 0%, #1a1a1c, #09090b);
+            }
 
-        .branding { display: flex; align-items: center; gap: 12px; margin-bottom: 80px; position: absolute; top: 64px; }
-        .brand-badge {
-          width: 34px;
-          height: 34px;
-          border-radius: 12px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-        }
+            .branding { display: flex; align-items: center; gap: 12px; margin-bottom: 80px; position: absolute; top: 64px; }
+            .brand-badge {
+              width: 34px;
+              height: 34px;
+              border-radius: 12px;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              background: rgba(255, 255, 255, 0.05);
+              border: 1px solid rgba(255, 255, 255, 0.08);
+              box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+            }
 
-        .brand-ball {
-          width: 24px;
-          height: 24px;
-          object-fit: contain;
-          filter: drop-shadow(0 4px 12px rgba(192, 255, 0, 0.22));
-        }
-        
-        .hero-text h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 24px; }
-        .hero-text h1 span { color: var(--primary); }
-        .hero-text p { font-size: 1.25rem; color: var(--muted-foreground); max-width: 540px; line-height: 1.6; margin-bottom: 64px; }
+            .brand-ball {
+              width: 24px;
+              height: 24px;
+              object-fit: contain;
+              filter: drop-shadow(0 4px 12px rgba(192, 255, 0, 0.22));
+            }
 
-        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 32px; }
-        .feature-item { display: flex; gap: 16px; }
-        .feature-item .icon { color: var(--primary); margin-top: 4px; }
-        .feature-item h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
-        .feature-item p { font-size: 0.85rem; color: var(--muted-foreground); line-height: 1.4; }
+            .hero-text h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 24px; }
+            .hero-text h1 span { color: var(--primary); }
+            .hero-text p { font-size: 1.25rem; color: var(--muted-foreground); max-width: 540px; line-height: 1.6; margin-bottom: 64px; }
 
-        .landing-auth {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(18, 18, 20, 0.5);
-          border-left: 1px solid var(--border);
-        }
+            .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 32px; }
+            .feature-item { display: flex; gap: 16px; }
+            .feature-item .icon { color: var(--primary); margin-top: 4px; }
+            .feature-item h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+            .feature-item p { font-size: 0.85rem; color: var(--muted-foreground); line-height: 1.4; }
 
-        .auth-card { width: 100%; max-width: 360px; }
-        h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
-        .subtitle { color: var(--muted-foreground); font-size: 0.9rem; margin-bottom: 32px; }
+            .landing-auth {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: rgba(18, 18, 20, 0.5);
+              border-left: 1px solid var(--border);
+            }
 
-        .input-field { margin-bottom: 24px; }
-        .input-field label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted-foreground); margin-bottom: 8px; }
-        .input-wrapper { position: relative; display: flex; align-items: center; }
-        .input-wrapper .icon { position: absolute; left: 16px; color: var(--muted-foreground); }
-        input {
-          width: 100%;
-          background: var(--secondary);
-          border: 1px solid var(--border);
-          padding: 14px 16px 14px 48px;
-          border-radius: 12px;
-          color: white;
-          font-size: 1rem;
-        }
-        input:focus { outline: none; border-color: var(--primary); }
+            .auth-card { width: 100%; max-width: 360px; }
+            h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+            .subtitle { color: var(--muted-foreground); font-size: 0.9rem; margin-bottom: 32px; }
 
-        .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+            .input-field { margin-bottom: 24px; }
+            .input-field label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted-foreground); margin-bottom: 8px; }
+            .input-wrapper { position: relative; display: flex; align-items: center; }
+            .input-wrapper .icon { position: absolute; left: 16px; color: var(--muted-foreground); }
+            input {
+              width: 100%;
+              background: var(--secondary);
+              border: 1px solid var(--border);
+              padding: 14px 16px 14px 48px;
+              border-radius: 12px;
+              color: white;
+              font-size: 1rem;
+            }
+            input:focus { outline: none; border-color: var(--primary); }
 
-        .auth-footer { margin-top: 32px; text-align: center; }
-        .auth-footer p { font-size: 0.8rem; color: var(--muted-foreground); }
+            .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
 
-        @media (max-width: 1024px) {
-          .landing-layout { grid-template-columns: 1fr; }
-          .landing-content { padding: 80px 40px; }
-          .landing-auth { padding: 80px 40px; border-left: none; border-top: 1px solid var(--border); }
-          .branding { top: 40px; }
-        }
-      `}}></style>
+            .auth-footer { margin-top: 32px; text-align: center; }
+            .auth-footer p { font-size: 0.8rem; color: var(--muted-foreground); }
+            .auth-footerLink { color: white; text-decoration: underline; text-underline-offset: 3px; }
+            .auth-footerLink:hover { color: var(--primary); }
+
+            @media (max-width: 1024px) {
+              .landing-layout { grid-template-columns: 1fr; }
+              .landing-content { padding: 80px 40px; }
+              .landing-auth { padding: 80px 40px; border-left: none; border-top: 1px solid var(--border); }
+              .branding { top: 40px; }
+            }
+          `,
+        }}
+      />
     </div>
   );
 };

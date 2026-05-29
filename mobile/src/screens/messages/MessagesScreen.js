@@ -11,7 +11,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { spacing, radius } from '../../theme/spacing';
 import { screenPadding } from '../../theme/layout';
-import { InlineError, Skeleton } from '../../components/ui';
+import { Avatar, InlineError, Skeleton } from '../../components/ui';
 
 export default function MessagesScreen({ navigation }) {
   const { colors, isDark } = useTheme();
@@ -109,9 +109,13 @@ export default function MessagesScreen({ navigation }) {
             accessibilityRole="button"
           >
             <View style={styles.avatar}>
-              <View style={[styles.avatarInner, { backgroundColor: colors.text.primary }]}>
-                <Text style={[typography.h3, { color: colors.background }]}>{item.partner_name?.[0]?.toUpperCase() || '?'}</Text>
-              </View>
+              <Avatar
+                name={item.partner_name}
+                src={item.partner_avatar}
+                avatarSeed={item.partner_avatar_seed}
+                size={52}
+                style={styles.avatarInner}
+              />
               {/* Online Dot */}
               <View style={[styles.onlineDot, { backgroundColor: colors.accent, borderColor: colors.background }]} />
             </View>
@@ -170,8 +174,9 @@ const styles = StyleSheet.create({
   },
   avatar: { position: 'relative' },
   avatarInner: {
-    width: 52, height: 52, borderRadius: 26,
-    alignItems: 'center', justifyContent: 'center',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   onlineDot: {
     position: 'absolute', bottom: 0, right: 0,

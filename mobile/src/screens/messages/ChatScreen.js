@@ -16,7 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { messagesAPI } from '../../services/api';
 import { getSocket, joinConnectionRoom, sendSocketMessage, emitTyping } from '../../services/socket';
 import { screenPadding } from '../../theme/layout';
-import { InlineError, Skeleton } from '../../components/ui';
+import { Avatar, InlineError, Skeleton } from '../../components/ui';
 
 function parseMessageDate(rawValue) {
   if (!rawValue) return null;
@@ -235,14 +235,16 @@ export default function ChatScreen({ route, navigation }) {
             }
 
             const isMine = item.sender_id === user?.id;
-            const initial = (item.sender_name || partnerName || '?').trim().charAt(0).toUpperCase() || '?';
-
             return (
               <View style={[styles.messageRow, isMine ? styles.messageRowMine : styles.messageRowOther]}>
                 {!isMine && (
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{initial}</Text>
-                  </View>
+                  <Avatar
+                    name={item.sender_name || partnerName}
+                    src={item.sender_avatar}
+                    avatarSeed={item.sender_avatar_seed}
+                    size={30}
+                    style={styles.avatar}
+                  />
                 )}
 
                 <View style={[styles.bubbleWrap, isMine ? styles.bubbleWrapMine : styles.bubbleWrapOther]}>
@@ -408,18 +410,8 @@ function createStyles(colors, spacing, radius, insets) {
       width: 30,
       height: 30,
       borderRadius: 15,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
       marginRight: 8,
       marginBottom: 6,
-    },
-    avatarText: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.text.primary,
     },
     bubbleWrap: {
       maxWidth: '78%',

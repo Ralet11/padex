@@ -37,7 +37,7 @@ function RankProgressBar({ stars, tier }) {
 }
 
 function LegacyProfileScreen({ navigation }) {
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount } = useAuth();
   const { colors } = useTheme();
   const [myMatches, setMyMatches] = useState([]);
   const [ratingData, setRatingData] = useState({ avg_score: 0, total: 0 });
@@ -69,6 +69,27 @@ function LegacyProfileScreen({ navigation }) {
   const progressionPoints = getProgressionPoints(user);
   const reputationScore = getReputationScore({ ...user, avg_rating: ratingData.avg_score });
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Eliminar cuenta',
+      'Esta accion eliminara tu cuenta de Padex y cerrara tu sesion. Si tienes partidos activos, primero debes salir de ellos.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount();
+            } catch (err) {
+              Alert.alert('No pudimos eliminar la cuenta', err.message || 'Intentalo de nuevo.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
@@ -87,6 +108,7 @@ function LegacyProfileScreen({ navigation }) {
               style={[styles.headerBtn, { borderColor: colors.borderLight, backgroundColor: 'rgba(239, 68, 68, 0.05)' }]}
               onPress={() => Alert.alert('¿Cerrar sesión?', '', [
                 { text: 'Cancelar', style: 'cancel' },
+                { text: 'Eliminar cuenta', style: 'destructive', onPress: handleDeleteAccount },
                 { text: 'Salir', style: 'destructive', onPress: logout },
               ])}
               accessibilityLabel="Cerrar sesión"
@@ -118,7 +140,7 @@ function LegacyProfileScreen({ navigation }) {
             <>
               {/* Profile hero */}
               <View style={styles.hero}>
-                <Avatar name={user?.name} src={user?.avatar} size={88} />
+                <Avatar name={user?.name} src={user?.avatar} avatarSeed={user?.avatar_seed} size={88} />
                 <Text style={[typography.h2, { color: colors.text.primary, marginTop: spacing.md }]}>{user?.name}</Text>
                 <View style={[styles.catBadge, { backgroundColor: catColor + '15', borderColor: catColor + '30', borderWidth: 1 }]}>
                   <Text style={[typography.captionMedium, { color: catColor, textTransform: 'capitalize' }]}>{rank.name}</Text>

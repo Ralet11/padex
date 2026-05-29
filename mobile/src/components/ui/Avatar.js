@@ -1,26 +1,27 @@
-import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Image } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
-import { Typography } from './Typography';
+import { resolveAssetUrl } from '../../services/api';
+import { GeneratedAvatar } from './GeneratedAvatar';
 
 export const Avatar = ({
     src,
+    uri,
     name,
     size = 40,
+    avatarSeed,
+    avatar_seed,
     fallbackColor = 'primaryMuted',
     style,
 }) => {
     const { colors } = useTheme();
+    const [imageFailed, setImageFailed] = useState(false);
+    const imageSource = resolveAssetUrl(src || uri);
+    const shouldRenderImage = Boolean(imageSource) && !imageFailed;
 
-    // Get initials if no image is provided
-    const getInitials = () => {
-        if (!name) return '?';
-        const parts = name.split(' ');
-        if (parts.length > 1) {
-            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-        }
-        return name.slice(0, 2).toUpperCase();
-    };
+    useEffect(() => {
+        setImageFailed(false);
+    }, [imageSource]);
 
     const containerStyle = {
         width: size,
@@ -34,18 +35,18 @@ export const Avatar = ({
 
     return (
         <View style={[containerStyle, style]}>
-            {src ? (
-                <Image source={{ uri: src }} style={{ width: '100%', height: '100%' }} />
+            {shouldRenderImage ? (
+                <Image
+                    source={{ uri: imageSource }}
+                    style={{ width: '100%', height: '100%' }}
+                    onError={() => setImageFailed(true)}
+                />
             ) : (
-                <Typography
-                    variant="bodyBold"
-                    style={{
-                        fontSize: size * 0.4,
-                        color: colors.primary,
-                    }}
-                >
-                    {getInitials()}
-                </Typography>
+                <GeneratedAvatar
+                    seed={avatarSeed || avatar_seed}
+                    name={name}
+                    size={size}
+                />
             )}
         </View>
     );

@@ -78,13 +78,18 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  async function deleteAccount() {
+    await authAPI.deleteAccount({ confirmation: 'DELETE' });
+    await logout();
+  }
+
   function updateUser(updatedUser) {
     setUser((prev) => ({ ...prev, ...updatedUser }));
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, register, loginWithProvider, logout, updateUser }}
+      value={{ user, token, loading, login, register, loginWithProvider, logout, deleteAccount, updateUser }}
     >
       {children}
     </AuthContext.Provider>

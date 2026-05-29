@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../theme/ThemeContext';
@@ -9,7 +9,7 @@ import api from '../../services/api';
 import { RANK_ARRAY, getRankByTier } from '../../utils/rankings';
 import { screenPadding } from '../../theme/layout';
 import { getProgressionPoints } from '../../utils/domain';
-import { Skeleton, InlineError } from '../../components/ui';
+import { Avatar, Skeleton, InlineError } from '../../components/ui';
 
 export default function LeaderboardScreen({ navigation }) {
     const { colors, isDark } = useTheme();
@@ -125,13 +125,13 @@ export default function LeaderboardScreen({ navigation }) {
                 </View>
 
                 <View style={styles.avatarContainer}>
-                    {item.avatar ? (
-                        <Image source={{ uri: item.avatar }} style={styles.avatar} />
-                    ) : (
-                        <View style={[styles.avatarPlaceholder, { backgroundColor: colors.surface }]}>
-                            <Feather name="user" size={20} color={colors.text.tertiary} />
-                        </View>
-                    )}
+                    <Avatar
+                        src={item.avatar}
+                        name={item.name}
+                        avatarSeed={item.avatar_seed}
+                        size={44}
+                        style={styles.avatar}
+                    />
                     {isTop3 && (
                         <View style={[styles.crown, { backgroundColor: colors.surface, borderColor: colors.accent }]}>
                             <Feather name="award" size={12} color={colors.accent} />
@@ -263,13 +263,6 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-    },
-    avatarPlaceholder: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     crown: {
         position: 'absolute',
