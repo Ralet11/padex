@@ -8,7 +8,10 @@
     "ios": "node scripts/start-expo.js --ios",
     "web": "node scripts/start-expo.js --web",
     "build:apk": "npx eas-cli build -p android --profile apk",
+    "build:ios": "npx eas-cli build -p ios --profile production",
     "build:android": "npx eas-cli build -p android --profile production",
+    "update:preview": "npx eas-cli update --channel preview",
+    "update:production": "npx eas-cli update --channel production",
     "config:public": "expo config --type public"
   },
   "dependencies": {
@@ -32,6 +35,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "expo-updates": "~29.0.16",
     "expo-web-browser": "~15.0.11",
     "lucide-react-native": "^0.577.0",
     "react": "19.1.0",

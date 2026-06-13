@@ -6,12 +6,27 @@ function toPlainUser(user = {}) {
   return data;
 }
 
+function isProfileComplete(user = {}) {
+  const hasIdentity = Boolean(
+    user?.email
+      || user?.phone_normalized
+      || user?.google_sub
+      || user?.apple_sub
+  );
+
+  return Boolean(hasIdentity && user?.name && String(user.name).trim());
+}
+
 function buildCanonicalUserPayload(user, payload = {}, sourceOverrides = {}) {
   const userData = toPlainUser(user);
   const source = { ...userData, ...sourceOverrides };
+  const profileCompleted = isProfileComplete(source);
 
   return attachLegacyCompatibility({
     ...userData,
+    profile_completed: profileCompleted,
+    needs_profile_completion: !profileCompleted,
+    phone_verified: Boolean(source.phone_verified_at),
     ...payload,
   }, source);
 }
@@ -59,6 +74,7 @@ function buildLeaderboardEntry(user) {
 
 module.exports = {
   toPlainUser,
+  isProfileComplete,
   buildCanonicalUserPayload,
   buildProfileUserPayload,
   buildLeaderboardEntry,

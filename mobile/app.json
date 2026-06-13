@@ -4,8 +4,11 @@
     "slug": "padex-mobile",
     "scheme": "padex",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "orientation": "portrait",
-    "icon": "./assets/padex-app-icon.png",
+    "icon": "./assets/appstore.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/ball-mark.png",
@@ -26,11 +29,27 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/5ec6a3d8-a9be-41ea-9dde-c02aff4e0a72"
+    },
     "ios": {
       "supportsTablet": false,
       "usesAppleSignIn": true,
-      "bundleIdentifier": "com.padex.mobile",
-      "buildNumber": "1"
+      "bundleIdentifier": "com.padex.ios",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        },
+        "NSFaceIDUsageDescription": "Padex puede usar Face ID para proteger tu acceso y mantener segura tu sesion."
+      }
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
@@ -45,7 +64,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Necesitamos acceso a tus fotos para que puedas subir tu foto de perfil."
+          "photosPermission": "Necesitamos acceso a tus fotos para que puedas subir tu foto de perfil.",
+          "cameraPermission": "Necesitamos acceso a tu camara para que puedas sacar una foto de perfil.",
+          "microphonePermission": "Necesitamos acceso a tu microfono para grabar video cuando uses la camara desde la app."
         }
       ],
       "expo-apple-authentication",

@@ -12,6 +12,8 @@ import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import EmailLoginScreen from '../screens/auth/EmailLoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import PhoneAuthScreen from '../screens/auth/PhoneAuthScreen';
+import PhoneProfileCompletionScreen from '../screens/auth/PhoneProfileCompletionScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import MatchDetailScreen from '../screens/home/MatchDetailScreen';
 import CreateMatchScreen from '../screens/matches/CreateMatchScreen';
@@ -166,11 +168,18 @@ export default function AppNavigator() {
           statusBarTranslucent: false,
         }}
       >
-        {user ? (
+        {user?.needs_profile_completion ? (
+          <Stack.Screen
+            name="CompletePhoneProfile"
+            component={PhoneProfileCompletionScreen}
+            options={authScreenOptions}
+          />
+        ) : user ? (
           <Stack.Screen name="Main" component={MainTabs} />
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} options={authScreenOptions} />
+            <Stack.Screen name="PhoneAuth" component={PhoneAuthScreen} options={authScreenOptions} />
             <Stack.Screen name="EmailLogin" component={EmailLoginScreen} options={authScreenOptions} />
             <Stack.Screen name="Register" component={RegisterScreen} options={authScreenOptions} />
           </>

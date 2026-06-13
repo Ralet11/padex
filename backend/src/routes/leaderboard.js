@@ -80,7 +80,7 @@ router.get('/:category_tier', auth, async (req, res) => {
     const requestedTier = parseInt(req.params.category_tier, 10);
 
     if (!Number.isInteger(requestedTier) || requestedTier < 1 || requestedTier > 7) {
-      return res.status(400).json({ error: 'Categoria de liga invalida (debe ser un valor 1-7)' });
+      return res.status(400).json({ error: 'Categoría de liga inválida (debe ser un valor 1-7)' });
     }
 
     const initialLeagueId = req.user?.competitive_context?.league_id || req.user?.league_id || null;

@@ -19,7 +19,7 @@ Opciones:
   --scope <demo|non-completed>    Alcance del borrado previo. Default: non-completed
   --title-prefix <texto>          Prefijo para scope=demo. Default: "${DEMO_MATCH_PREFIX}"
   --count <numero>                Total objetivo de partidos demo abiertos. Default: ${TARGET_OPEN_MATCHES}
-  --payment-required <true|false> Recrea partidos demo con pagos habilitados. Default: false
+  --payment-required <true|false> Recrea partidos demo con pagos habilitados. Default: true
   --dry-run                       Simula limpieza + recreacion y revierte al final
   --yes                           Confirma la ejecucion real
   --help                          Muestra esta ayuda

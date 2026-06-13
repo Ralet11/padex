@@ -82,6 +82,7 @@ export default function RegisterScreen({ navigation }) {
 
   function validateStep1() {
     const nextErrors = {};
+    if (!form.name.trim()) nextErrors.name = 'El nombre es requerido';
     if (!form.email.trim()) nextErrors.email = 'El email es requerido';
     else if (!/\S+@\S+\.\S+/.test(form.email)) nextErrors.email = 'Email invalido';
     setErrors(nextErrors);
@@ -90,18 +91,11 @@ export default function RegisterScreen({ navigation }) {
 
   function validateStep2() {
     const nextErrors = {};
-    if (!form.password) nextErrors.password = 'La contrasena es requerida';
-    else if (form.password.length < 6) nextErrors.password = 'Minimo 6 caracteres';
-    if (!form.confirmPassword) nextErrors.confirmPassword = 'Confirma la contrasena';
+    if (!form.password) nextErrors.password = 'La contraseña es requerida';
+    else if (form.password.length < 6) nextErrors.password = 'Mínimo 6 caracteres';
+    if (!form.confirmPassword) nextErrors.confirmPassword = 'Confirma la contraseña';
     else if (form.password !== form.confirmPassword)
-      nextErrors.confirmPassword = 'Las contrasenas no coinciden';
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  }
-
-  function validateStep3() {
-    const nextErrors = {};
-    if (!form.name.trim()) nextErrors.name = 'El nombre es requerido';
+      nextErrors.confirmPassword = 'Las contraseñas no coinciden';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -117,8 +111,6 @@ export default function RegisterScreen({ navigation }) {
   }
 
   async function handleRegister() {
-    if (!validateStep3()) return;
-
     setLoading(true);
     try {
       await register(form);
@@ -182,19 +174,31 @@ export default function RegisterScreen({ navigation }) {
                       ? 'Crea tu cuenta'
                       : step === 2
                         ? 'Protege tu acceso'
-                        : 'Completa tu perfil'}
+                        : 'Configura tu juego'}
                   </Typography>
                   <Typography variant="body" align="center" style={styles.subtitle}>
                     {step === 1
-                      ? 'Primero necesitamos tu email.'
+                      ? 'Sumamos tu nombre y email para empezar.'
                       : step === 2
-                        ? 'Ahora crea y confirma tu contrasena.'
-                        : 'Sumamos tu nombre, nivel y preferencias para arrancar bien.'}
+                        ? 'Ahora crea y confirma tu contraseña.'
+                        : 'Elegí tu nivel y preferencias para arrancar bien.'}
                   </Typography>
                 </View>
 
                 {step === 1 ? (
                   <View style={styles.form}>
+                    <Input
+                      label="Nombre completo"
+                      value={form.name}
+                      onChangeText={(value) => update('name', value)}
+                      placeholder="Juan Perez"
+                      error={errors.name}
+                      autoComplete="name"
+                      textContentType="name"
+                      returnKeyType="next"
+                      focusedBorderColor={colors.accent}
+                      {...DARK_INPUT}
+                    />
                     <Input
                       label="Email"
                       value={form.email}
@@ -227,10 +231,10 @@ export default function RegisterScreen({ navigation }) {
                 ) : step === 2 ? (
                   <View style={styles.form}>
                     <Input
-                      label="Contrasena"
+                      label="Contraseña"
                       value={form.password}
                       onChangeText={(value) => update('password', value)}
-                      placeholder="Minimo 6 caracteres"
+                      placeholder="Mínimo 6 caracteres"
                       secureTextEntry
                       autoCorrect={false}
                       autoComplete="new-password"
@@ -241,10 +245,10 @@ export default function RegisterScreen({ navigation }) {
                       {...DARK_INPUT}
                     />
                     <Input
-                      label="Confirmar contrasena"
+                      label="Confirmar contraseña"
                       value={form.confirmPassword}
                       onChangeText={(value) => update('confirmPassword', value)}
-                      placeholder="Repite tu contrasena"
+                      placeholder="Repite tu contraseña"
                       secureTextEntry
                       autoCorrect={false}
                       autoComplete="new-password"
@@ -271,25 +275,12 @@ export default function RegisterScreen({ navigation }) {
                   </View>
                 ) : (
                   <View style={styles.form}>
-                    <Input
-                      label="Nombre completo"
-                      value={form.name}
-                      onChangeText={(value) => update('name', value)}
-                      placeholder="Juan Perez"
-                      error={errors.name}
-                      autoComplete="name"
-                      textContentType="name"
-                      returnKeyType="next"
-                      focusedBorderColor={colors.accent}
-                      {...DARK_INPUT}
-                    />
-
                     <View style={styles.panel}>
                       <Typography variant="captionMedium" style={styles.sectionEyebrow}>
                         NIVEL INICIAL
                       </Typography>
                       <Typography variant="captionMedium" style={styles.sectionLabel}>
-                        Elegi tu nivel
+                        Elegí tu nivel
                       </Typography>
                       <Typography variant="caption" style={styles.sectionCopy}>
                         Define tu punto de partida y se ajusta con tus partidos.
@@ -480,7 +471,7 @@ export default function RegisterScreen({ navigation }) {
                 <Typography variant="bodyMedium" align="center" style={styles.footerText}>
                   Ya tenes cuenta?{' '}
                   <Typography variant="bodyBold" style={{ color: colors.accent }}>
-                    Iniciar sesion
+                    Iniciar sesión
                   </Typography>
                 </Typography>
               </TouchableOpacity>

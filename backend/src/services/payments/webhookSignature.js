@@ -32,7 +32,7 @@ function validateMercadoPagoWebhookSignature(req) {
 
   const secret = String(process.env.MP_WEBHOOK_SECRET || '').trim();
   if (!secret) {
-    const error = new Error('MP_WEBHOOK_SECRET no esta configurado.');
+    const error = new Error('MP_WEBHOOK_SECRET no está configurado.');
     error.status = 500;
     error.code = 'MP_WEBHOOK_SECRET_MISSING';
     throw error;

@@ -37,10 +37,21 @@ function getPlayerPrice(totalCourtPrice, orderIndex) {
   return Math.round(basePrice + (orderIndex * 2000));
 }
 
+function getDisplayedPlayerQuote(match, orderIndex) {
+  const pricingPositions = Array.isArray(match?.pricing?.positions) ? match.pricing.positions : [];
+  const quotedPosition = pricingPositions[orderIndex];
+
+  if (quotedPosition && Number.isFinite(Number(quotedPosition.total_amount))) {
+    return Number(quotedPosition.total_amount);
+  }
+
+  return getPlayerPrice(match?.price || 0, orderIndex);
+}
+
 async function openVenueMap(match) {
   const url = getGoogleMapsSearchUrl(match);
   if (!url) {
-    Alert.alert('Mapa no disponible', 'Esta sede no tiene direccion cargada.');
+    Alert.alert('Mapa no disponible', 'Esta sede no tiene dirección cargada.');
     return;
   }
 
@@ -95,14 +106,18 @@ function PlayerQuadrant({ player, colors, isCreator }) {
   );
 }
 
-function EmptyQuadrant({ colors, joinPrice, onJoin, showJoin, isInMatch }) {
+function EmptyQuadrant({ colors, joinPrice, onJoin, showJoin, isInMatch, paymentRequired }) {
   if (showJoin) {
     return (
       <TouchableOpacity
         style={[styles.emptySlotCard, styles.joinSlotCard, { borderColor: colors.text.primary, backgroundColor: colors.surfaceHighlight }]}
         activeOpacity={0.85}
         onPress={onJoin}
-        accessibilityLabel={`Sumarte al partido por $${joinPrice.toLocaleString('es-AR')}`}
+        accessibilityLabel={
+          paymentRequired
+            ? `Sumarte al partido por $${joinPrice.toLocaleString('es-AR')}`
+            : 'Sumarte al partido'
+        }
         accessibilityRole="button"
       >
         <View style={styles.emptySlotHeader}>
@@ -112,14 +127,16 @@ function EmptyQuadrant({ colors, joinPrice, onJoin, showJoin, isInMatch }) {
           <View style={{ flex: 1 }}>
             <Text style={[typography.bodyBold, { color: colors.text.primary }]}>Sumarte ahora</Text>
             <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]}>
-              Tomas el proximo lugar disponible
+              Tomás el próximo lugar disponible
             </Text>
           </View>
         </View>
         <View style={styles.emptySlotFooter}>
-          <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>PRECIO</Text>
+          <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>
+            {paymentRequired ? 'PRECIO' : 'CUPO'}
+          </Text>
           <Text style={[typography.bodyBold, { color: colors.text.primary }]}>
-            ${joinPrice.toLocaleString('es-AR')}
+            {paymentRequired ? `$${joinPrice.toLocaleString('es-AR')}` : 'Disponible'}
           </Text>
         </View>
       </TouchableOpacity>
@@ -137,7 +154,7 @@ function EmptyQuadrant({ colors, joinPrice, onJoin, showJoin, isInMatch }) {
             {isInMatch ? 'Vacante' : 'Lugar libre'}
           </Text>
           <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]}>
-            {isInMatch ? 'Todavia falta un jugador para completar el partido' : 'Disponible para el proximo jugador'}
+            {isInMatch ? 'Todavía falta un jugador para completar el partido' : 'Disponible para el próximo jugador'}
           </Text>
         </View>
       </View>
@@ -197,6 +214,15 @@ export default function MatchDetailScreen({ route, navigation }) {
     try {
       let updatedMatch = null;
 
+      if (match?.payment_required) {
+        const paymentResult = await startMatchPaymentFlow(() => matchesAPI.joinPaymentIntent(matchId));
+        if (paymentResult.status !== 'approved') {
+          throw new Error(getMatchPaymentOutcomeMessage(paymentResult.status));
+        }
+
+        const refreshedMatch = await matchesAPI.get(paymentResult.matchId || matchId);
+        updatedMatch = refreshedMatch?.data?.match || null;
+      } else {
       try {
         const res = await matchesAPI.join(matchId);
         updatedMatch = res?.data?.match || null;
@@ -212,6 +238,7 @@ export default function MatchDetailScreen({ route, navigation }) {
 
         const refreshedMatch = await matchesAPI.get(paymentResult.matchId || matchId);
         updatedMatch = refreshedMatch?.data?.match || null;
+      }
       }
 
       if (!updatedMatch) {
@@ -347,7 +374,11 @@ export default function MatchDetailScreen({ route, navigation }) {
   const dayStr = date.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
   const totalValue = Number(match.price || 0);
   const myPlayerIndex = orderedPlayers.findIndex((player) => player.id === user.id);
-  const currentDisplayedValue = getPlayerPrice(totalValue, myPlayerIndex >= 0 ? myPlayerIndex : Math.max(orderedPlayers.length, 0));
+  const nextJoinIndex = Math.max(orderedPlayers.length, 0);
+  const currentDisplayedValue = getDisplayedPlayerQuote(
+    match,
+    myPlayerIndex >= 0 ? myPlayerIndex : nextJoinIndex
+  );
 
   const maxPlayers = match?.max_players || 4;
   const quadrants = Array.from({ length: maxPlayers }, (_, index) => orderedPlayers[index] || null);
@@ -408,10 +439,14 @@ export default function MatchDetailScreen({ route, navigation }) {
               <View style={[styles.metaCard, { backgroundColor: colors.surfaceHighlight }]}>
                 <Text style={[typography.captionMedium, { color: colors.text.tertiary }]}>VALOR</Text>
                 <Text style={[typography.bodyBold, { color: colors.text.primary, marginTop: 4 }]}>
-                  ${currentDisplayedValue.toLocaleString('es-AR')}
+                  {match.payment_required
+                    ? `$${currentDisplayedValue.toLocaleString('es-AR')}`
+                    : 'Sin pago online'}
                 </Text>
                 <Text style={[typography.caption, { color: colors.text.secondary, marginTop: 2 }]}>
-                  {myPlayerIndex >= 0 ? 'tu precio' : 'precio para sumarte'}
+                  {match.payment_required
+                    ? (myPlayerIndex >= 0 ? 'tu precio' : 'precio para sumarte')
+                    : 'este partido usa el flujo anterior'}
                 </Text>
               </View>
             </View>
@@ -440,10 +475,11 @@ export default function MatchDetailScreen({ route, navigation }) {
               <EmptyQuadrant
                 key={`empty-${index}`}
                 colors={colors}
-                joinPrice={getPlayerPrice(totalValue, index)}
+                joinPrice={getDisplayedPlayerQuote(match, index)}
                 onJoin={handleJoin}
                 showJoin={index === joinQuadrantIndex && matchState === MATCH_STATES.OPEN && !isInMatch && !isFull}
                 isInMatch={isInMatch}
+                paymentRequired={Boolean(match.payment_required)}
               />
             );
           })}

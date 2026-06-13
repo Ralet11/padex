@@ -50,7 +50,7 @@ function deriveAllowedAudiences(provider, decodedAudience) {
 
   throw new SocialAuthError(
     503,
-    `La autenticacion con ${provider === 'google' ? 'Google' : 'Apple'} no esta configurada`
+    `La autenticación con ${provider === 'google' ? 'Google' : 'Apple'} no está configurada`
   );
 }
 
@@ -128,7 +128,7 @@ async function verifyJwtWithJwks(idToken, { provider, jwksUrl, issuers }) {
     }
 
     if (error?.name === 'TokenExpiredError') {
-      throw new SocialAuthError(401, 'La sesion con el proveedor expiro. Intentalo de nuevo');
+      throw new SocialAuthError(401, 'La sesión con el proveedor expiró. Inténtalo de nuevo');
     }
 
     console.error(`[social-auth] ${provider} token verification failed`);

@@ -138,6 +138,7 @@ function App() {
   const handleLogin = (authData) => {
     const { user: userData, token } = authData;
     const sessionData = { ...userData, token };
+    setAuthToken(token);
     setUser(sessionData);
     persistSession(sessionData);
   };

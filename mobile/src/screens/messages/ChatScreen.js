@@ -219,7 +219,7 @@ export default function ChatScreen({ route, navigation }) {
           contentContainerStyle={styles.messagesContent}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Todavia no hay mensajes</Text>
+              <Text style={styles.emptyTitle}>Todavía no hay mensajes</Text>
               <Text style={styles.emptyText}>Escribile a {partnerName} para empezar la conversacion.</Text>
             </View>
           }
@@ -269,7 +269,7 @@ export default function ChatScreen({ route, navigation }) {
 
         {!loading && !fetchError && isTyping && (
           <View style={styles.typingWrap}>
-            <Text style={styles.typingText}>{partnerName} esta escribiendo...</Text>
+            <Text style={styles.typingText}>{partnerName} está escribiendo...</Text>
           </View>
         )}
 

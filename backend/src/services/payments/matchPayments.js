@@ -288,7 +288,7 @@ async function createCreatorPaymentIntent({ requester, payload }) {
       lock: transaction.LOCK.UPDATE,
     });
 
-    if (!slot) throw createPublicError('El turno no esta disponible');
+    if (!slot) throw createPublicError('El turno no está disponible');
     const chargeableSlotPrice = await ensureChargeableSlotPrice(slot, transaction);
 
     const conflictingMatch = await Match.findOne({
@@ -302,7 +302,7 @@ async function createCreatorPaymentIntent({ requester, payload }) {
     });
 
     if (conflictingMatch) {
-      throw createPublicError('Ese turno ya esta comprometido por otro partido');
+      throw createPublicError('Ese turno ya está comprometido por otro partido');
     }
 
     const activeSeason = canAssignCompetitiveSeason(slot)
@@ -388,11 +388,11 @@ async function createJoinPaymentIntent({ requester, matchId }) {
     });
 
     if (!match) throw createPublicError('Partido no encontrado', 404);
-    if (match.state !== MATCH_STATES.OPEN) throw createPublicError('El partido no esta disponible');
+    if (match.state !== MATCH_STATES.OPEN) throw createPublicError('El partido no está disponible');
     if (!match.payment_required) throw createPublicError('Este partido aun usa el flujo sin pagos');
 
     if (!isUserAllowedByCategoryRule(match, resolveAuthoritativeTier(requester))) {
-      throw createPublicError('Tu categoria no entra en el rango permitido para este partido');
+      throw createPublicError('Tu categoría no entra en el rango permitido para este partido');
     }
 
     const existingPlayer = await MatchPlayer.findOne({
@@ -424,7 +424,7 @@ async function createJoinPaymentIntent({ requester, matchId }) {
     }
 
     const playerCount = match.Players.length;
-    if (playerCount >= match.max_players) throw createPublicError('El partido esta completo');
+    if (playerCount >= match.max_players) throw createPublicError('El partido está completo');
     if (!match.Slot) throw createPublicError('Turno no encontrado', 404);
     const chargeableSlotPrice = await ensureChargeableSlotPrice(match.Slot, transaction);
 

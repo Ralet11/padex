@@ -373,7 +373,7 @@ function resolveTargetOpenMatches(value) {
 
 function resolvePaymentRequired(value) {
   if (typeof value === 'boolean') return value;
-  if (typeof value === 'undefined' || value === null || value === '') return false;
+  if (typeof value === 'undefined' || value === null || value === '') return true;
 
   const normalized = String(value).trim().toLowerCase();
   return ['1', 'true', 'yes', 'y', 'on'].includes(normalized);

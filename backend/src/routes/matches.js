@@ -571,7 +571,7 @@ router.post('/:id/join', auth, async (req, res) => {
     if (match.state !== MATCH_STATES.OPEN) return res.status(400).json({ error: 'El partido no está disponible' });
 
     if (!isUserAllowedByCategoryRule(match, resolveAuthoritativeTier(req.user))) {
-      return res.status(400).json({ error: 'Tu categoria no entra en el rango permitido para este partido' });
+      return res.status(400).json({ error: 'Tu categoría no entra en el rango permitido para este partido' });
     }
 
     const existing = await MatchPlayer.findOne({ where: { match_id: req.params.id, user_id: req.user.id } });

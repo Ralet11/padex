@@ -71,6 +71,39 @@ export function AuthProvider({ children }) {
     return u;
   }
 
+  async function sendPhoneCode(phone) {
+    console.log('[auth] phone send code start');
+    const res = await authAPI.sendPhoneCode({ phone });
+    return res.data;
+  }
+
+  async function verifyPhoneCode(phone, code) {
+    console.log('[auth] phone verify code start');
+    const res = await authAPI.verifyPhoneCode({ phone, code });
+    const { token: t, user: u } = res.data;
+    await AsyncStorage.setItem('token', t);
+    setToken(t);
+    setUser(u);
+    initSocket(t);
+    console.log('[auth] phone verify code success', {
+      userId: u.id,
+      needsProfileCompletion: Boolean(u?.needs_profile_completion),
+    });
+    return res.data;
+  }
+
+  async function completePhoneProfile(data) {
+    console.log('[auth] complete phone profile start');
+    const res = await authAPI.completePhoneProfile(data);
+    const { user: u } = res.data;
+    setUser(u);
+    console.log('[auth] complete phone profile success', {
+      userId: u.id,
+      needsProfileCompletion: Boolean(u?.needs_profile_completion),
+    });
+    return u;
+  }
+
   async function logout() {
     await AsyncStorage.removeItem('token');
     disconnectSocket();
@@ -89,7 +122,20 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, register, loginWithProvider, logout, deleteAccount, updateUser }}
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        register,
+        loginWithProvider,
+        sendPhoneCode,
+        verifyPhoneCode,
+        completePhoneProfile,
+        logout,
+        deleteAccount,
+        updateUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

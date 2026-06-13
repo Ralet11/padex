@@ -11,8 +11,21 @@ const User = sequelize.define('User', {
     },
     email: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
         unique: true,
+    },
+    phone: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    phone_normalized: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+    },
+    phone_verified_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
     },
     google_sub: {
         type: DataTypes.STRING,
@@ -26,11 +39,11 @@ const User = sequelize.define('User', {
     },
     password: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
     },
     name: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
     },
     avatar: {
         type: DataTypes.STRING,
@@ -126,6 +139,10 @@ const User = sequelize.define('User', {
         type: DataTypes.DATE,
         allowNull: true,
     },
+    profile_completed_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+    },
 }, {
     tableName: 'users',
     hooks: {
@@ -141,7 +158,7 @@ const User = sequelize.define('User', {
             if (!user.avatar_seed) {
                 ensureAvatarSeed(user);
             }
-            if (user.changed('password')) {
+            if (user.changed('password') && user.password) {
                 user.password = await bcrypt.hash(user.password, 10);
             }
         }

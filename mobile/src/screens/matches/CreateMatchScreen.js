@@ -375,7 +375,7 @@ export default function CreateMatchScreen({ navigation }) {
   const openVenueMap = useCallback(async (venue) => {
     const url = getGoogleMapsSearchUrl(venue);
     if (!url) {
-      Alert.alert('Mapa no disponible', 'Esta sede no tiene direccion cargada.');
+      Alert.alert('Mapa no disponible', 'Esta sede no tiene dirección cargada.');
       return;
     }
 
@@ -550,7 +550,7 @@ export default function CreateMatchScreen({ navigation }) {
     try {
       const fallback = await findFirstAvailableDate(selectedVenueId, selectedDate);
       if (!fallback) {
-        Alert.alert('Sin turnos', 'No encontramos turnos disponibles en los proximos dias.');
+        Alert.alert('Sin turnos', 'No encontramos turnos disponibles en los próximos días.');
         return;
       }
 
@@ -827,7 +827,7 @@ export default function CreateMatchScreen({ navigation }) {
                 label="Buscar sede"
                 value={venueSearch}
                 onChangeText={setVenueSearch}
-                placeholder="Nombre o direccion"
+                placeholder="Nombre o dirección"
                 leftIcon={<Feather name="search" size={16} color={colors.text.tertiary} />}
                 style={styles.searchInputWrap}
               />
@@ -902,7 +902,7 @@ export default function CreateMatchScreen({ navigation }) {
                     ? 'No encontramos sedes que cumplan con esos filtros.'
                     : venueSearch.trim()
                       ? 'No encontramos sedes con ese nombre.'
-                      : 'Todavia no hay sedes disponibles.'}
+                      : 'Todavía no hay sedes disponibles.'}
                 </Text>
               </View>
             ) : null}
@@ -1045,7 +1045,7 @@ export default function CreateMatchScreen({ navigation }) {
                   </Text>
                 ) : null}
                 <Button
-                  title="Buscar proximo dia libre"
+                  title="Buscar próximo día libre"
                   variant="outline"
                   loading={searchingNextDate}
                   onPress={handleFindNextAvailableDate}
@@ -1277,7 +1277,7 @@ export default function CreateMatchScreen({ navigation }) {
                 </>
               ) : (
                 <Text style={[typography.caption, { color: colors.text.secondary, marginTop: spacing.sm }]}>
-                  Se puede anotar cualquier categoria.
+                  Se puede anotar cualquier categoría.
                 </Text>
               )}
             </View>
@@ -1384,7 +1384,16 @@ export default function CreateMatchScreen({ navigation }) {
             activeOpacity={1}
             onPress={() => setFiltersVisible(false)}
           />
-          <View style={[styles.filterSheetCard, { backgroundColor: colors.background, borderColor: colors.borderLight }]}>
+          <View
+            style={[
+              styles.filterSheetCard,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.borderLight,
+                paddingBottom: spacing.lg + insets.bottom,
+              },
+            ]}
+          >
             <View style={styles.weekPickerHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[typography.subtitle, { color: colors.text.primary }]}>Filtrar sedes</Text>
@@ -1397,7 +1406,13 @@ export default function CreateMatchScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.filterSheetContent}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[
+                styles.filterSheetContent,
+                { paddingBottom: spacing.md + insets.bottom },
+              ]}
+            >
               <View style={styles.filterSection}>
                 <Text style={[typography.bodyBold, { color: colors.text.primary }]}>Servicios del club</Text>
                 <View style={styles.filterChipWrap}>
@@ -1528,10 +1543,21 @@ export default function CreateMatchScreen({ navigation }) {
             activeOpacity={1}
             onPress={() => setActiveVenue(null)}
           />
-          <View style={[styles.modalCard, { backgroundColor: colors.background }]}>
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.background,
+                paddingBottom: insets.bottom,
+              },
+            ]}
+          >
             <ScrollView
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.modalScrollContent}
+              contentContainerStyle={[
+                styles.modalScrollContent,
+                { paddingBottom: spacing.lg + insets.bottom },
+              ]}
             >
               <View style={styles.modalHero}>
                 {resolveAssetUrl(activeVenue?.image) ? (

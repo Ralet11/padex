@@ -6,7 +6,7 @@ const {
 
 function assertFetchAvailable() {
   if (typeof fetch !== 'function') {
-    const error = new Error('Global fetch no esta disponible en esta version de Node.');
+    const error = new Error('Global fetch no está disponible en esta versión de Node.');
     error.code = 'FETCH_UNAVAILABLE';
     throw error;
   }
@@ -31,7 +31,7 @@ function normalizeUnitPrice(value) {
 async function mercadoPagoRequest(path, { method = 'GET', body = null, idempotencyKey = null } = {}) {
   const accessToken = String(process.env.MP_ACCESS_TOKEN || '').trim();
   if (!accessToken) {
-    const error = new Error('MP_ACCESS_TOKEN no esta configurado.');
+    const error = new Error('MP_ACCESS_TOKEN no está configurado.');
     error.code = 'MP_ACCESS_TOKEN_MISSING';
     throw error;
   }
@@ -93,7 +93,7 @@ async function createMercadoPagoPreference({ payment, match, slot, payer }) {
     items: [
       {
         id: `match-payment-${payment.id}`,
-        title: payment.role === 'creator' ? 'Creacion de partido Padex' : 'Ingreso a partido Padex',
+        title: payment.role === 'creator' ? 'Creación de partido Padex' : 'Ingreso a partido Padex',
         description: `Partido ${match.id} - ${slot.date} ${slot.time}`,
         quantity: 1,
         currency_id: payment.currency,

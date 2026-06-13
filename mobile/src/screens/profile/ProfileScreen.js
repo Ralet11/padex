@@ -72,7 +72,7 @@ function LegacyProfileScreen({ navigation }) {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Eliminar cuenta',
-      'Esta accion eliminara tu cuenta de Padex y cerrara tu sesion. Si tienes partidos activos, primero debes salir de ellos.',
+      'Esta acción eliminará tu cuenta de Padex y cerrará tu sesión. Si tienes partidos activos, primero debes salir de ellos.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {

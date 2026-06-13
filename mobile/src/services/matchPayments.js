@@ -87,9 +87,9 @@ export function getMatchPaymentOutcomeMessage(status) {
     case 'cancelled':
       return 'El pago fue cancelado.';
     case 'expired':
-      return 'La sesion de pago vencio.';
+      return 'La sesión de pago venció.';
     case 'refund_pending':
-      return 'El pago se recibio, pero el cupo ya no estaba disponible. Se esta gestionando el reembolso.';
+      return 'El pago se recibió, pero el cupo ya no estaba disponible. Se está gestionando el reembolso.';
     case 'refunded':
       return 'El pago fue reembolsado porque el cupo ya no estaba disponible.';
     default:

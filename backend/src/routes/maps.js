@@ -55,7 +55,7 @@ router.get('/static-preview', async (req, res) => {
   const query = buildLocationQuery(req.query);
   if (!query) {
     return res.status(400).json({
-      error: 'La direccion es requerida para generar la vista previa.',
+      error: 'La dirección es requerida para generar la vista previa.',
       code: 'maps_static_missing_query',
     });
   }
@@ -69,7 +69,7 @@ router.get('/static-preview', async (req, res) => {
   const mapUrl = buildStaticMapUrl({ query, width, height, zoom, scale, mapType });
   if (!mapUrl) {
     return res.status(503).json({
-      error: 'Maps Static API no esta configurado en el backend.',
+      error: 'Maps Static API no está configurado en el backend.',
       code: 'maps_static_not_configured',
     });
   }

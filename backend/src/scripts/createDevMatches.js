@@ -23,7 +23,7 @@ Uso:
 
 Opciones:
   --count <numero>                Total objetivo de partidos demo abiertos. Default: ${TARGET_OPEN_MATCHES}
-  --payment-required <true|false> Crear partidos demo con pagos habilitados. Default: false
+  --payment-required <true|false> Crear partidos demo con pagos habilitados. Default: true
   --help                          Muestra esta ayuda
 `);
 }
@@ -46,7 +46,7 @@ function assertSafeExecution() {
 
 async function createDevMatches(options = {}) {
   const targetOpenMatches = resolveTargetCount(options.count);
-  const paymentRequired = parseBoolean(options.paymentRequired, false);
+  const paymentRequired = parseBoolean(options.paymentRequired, true);
 
   const ensuredVenues = await ensureDemoVenues({ transaction: options.transaction });
   const players = await ensureDemoPlayers({ transaction: options.transaction });

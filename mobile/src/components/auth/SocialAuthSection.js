@@ -173,7 +173,7 @@ export default function SocialAuthSection({ caption = 'o continua con', density 
     }
 
     if (!googleRequest) {
-      Alert.alert('Google no esta listo', 'Espera un segundo y vuelve a intentarlo.');
+      Alert.alert('Google no está listo', 'Espera un segundo y vuelve a intentarlo.');
       return;
     }
 

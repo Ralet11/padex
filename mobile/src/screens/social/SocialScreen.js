@@ -264,7 +264,7 @@ export default function SocialScreen({ navigation }) {
                 key={t}
                 style={[styles.segmentBtn, isActive && { backgroundColor: colors.text.primary, ...shadows.sm }]}
                 onPress={() => setTab(t)}
-                accessibilityLabel={`Pestana ${t}`}
+                accessibilityLabel={`Pestaña ${t}`}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isActive }}
               >
@@ -363,7 +363,7 @@ export default function SocialScreen({ navigation }) {
               <View style={styles.empty}>
                 <Feather name="users" size={32} color={colors.text.tertiary} style={{ marginBottom: spacing.sm }} />
                 <Text style={[typography.body, { color: colors.text.secondary, textAlign: 'center' }]}>
-                  Aun no tenes companeros{'\n'}Busca jugadores y conectate
+                  Aún no tenés compañeros{'\n'}Buscá jugadores y conectate
                 </Text>
               </View>
             }

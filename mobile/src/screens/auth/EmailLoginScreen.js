@@ -58,7 +58,7 @@ export default function EmailLoginScreen({ navigation }) {
     const nextErrors = {};
     if (!email.trim()) nextErrors.email = 'El email es requerido';
     else if (!/\S+@\S+\.\S+/.test(email)) nextErrors.email = 'Email invalido';
-    if (!password) nextErrors.password = 'La contrasena es requerida';
+    if (!password) nextErrors.password = 'La contraseña es requerida';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -120,7 +120,7 @@ export default function EmailLoginScreen({ navigation }) {
                   />
 
                   <Input
-                    label="Contrasena"
+                    label="Contraseña"
                     value={password}
                     onChangeText={setPassword}
                     placeholder="********"

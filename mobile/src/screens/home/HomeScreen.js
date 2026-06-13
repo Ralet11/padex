@@ -9,6 +9,7 @@ import {
   View,
   FlatList,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { matchesAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -32,7 +33,7 @@ const CATEGORY_FILTERS = [
 
 const QUICK_DATE_FILTERS = [
   { key: 'today', label: 'Hoy' },
-  { key: 'tomorrow', label: 'Manana' },
+  { key: 'tomorrow', label: 'Mañana' },
   { key: 'week', label: 'Semana' },
 ];
 
@@ -112,6 +113,7 @@ function getDateLabel(dateFilter) {
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -437,7 +439,13 @@ export default function HomeScreen({ navigation }) {
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setIsFiltersOpen(false)}>
           <Pressable
-            style={[styles.sheet, { backgroundColor: colors.background }]}
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: colors.background,
+                paddingBottom: 28 + insets.bottom,
+              },
+            ]}
             onPress={(event) => event.stopPropagation()}
           >
             <View style={styles.sheetHandle} />
@@ -445,7 +453,10 @@ export default function HomeScreen({ navigation }) {
             <ScrollView
               showsVerticalScrollIndicator={false}
               bounces={false}
-              contentContainerStyle={styles.sheetScrollContent}
+              contentContainerStyle={[
+                styles.sheetScrollContent,
+                { paddingBottom: 8 + insets.bottom },
+              ]}
             >
               <View style={styles.sheetHeader}>
                 <View>

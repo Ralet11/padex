@@ -197,7 +197,7 @@ export default function LoginScreen({ navigation }) {
       return;
     }
     if (!googleRequest) {
-      Alert.alert('Google no esta listo', 'Espera un segundo y vuelve a intentarlo.');
+      Alert.alert('Google no está listo', 'Espera un segundo y vuelve a intentarlo.');
       return;
     }
 
@@ -262,7 +262,7 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => navigation.navigate('EmailLogin')}
+            onPress={() => navigation.navigate('PhoneAuth')}
             style={({ pressed }) => [
               styles.primaryBtn,
               { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 },
@@ -272,9 +272,26 @@ export default function LoginScreen({ navigation }) {
               <BallGlyph size={18} color="#FFFFFF" stroke="#0B0B0D" />
             </View>
             <Typography variant="bodyBold" align="center" style={styles.primaryBtnText}>
-              Entrar con usuario y contrasena
+              Continuar con telefono
             </Typography>
             <View style={styles.primaryIcon} />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('EmailLogin')}
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              { opacity: pressed ? 0.9 : 1 },
+            ]}
+          >
+            <View style={styles.secondaryIcon}>
+              <BallGlyph size={18} color="#FFFFFF" stroke="#0B0B0D" />
+            </View>
+            <Typography variant="bodyBold" align="center" style={styles.secondaryBtnText}>
+              Entrar con email y contrasena
+            </Typography>
+            <View style={styles.secondaryIcon} />
           </Pressable>
 
           <Pressable

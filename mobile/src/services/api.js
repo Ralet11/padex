@@ -85,6 +85,9 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   social: (provider, data) => api.post(`/auth/social/${provider}`, data),
+  sendPhoneCode: (data) => api.post('/auth/phone/send-code', data),
+  verifyPhoneCode: (data) => api.post('/auth/phone/verify-code', data),
+  completePhoneProfile: (data) => api.post('/auth/phone/complete-profile', data),
   me: () => api.get('/auth/me'),
   deleteAccount: (data = {}) => api.post('/auth/delete-account', data),
 };
