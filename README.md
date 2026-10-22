@@ -85,7 +85,7 @@ Antes de grabar, verificá ese recorrido en tu entorno local. No hay capturas ge
 
 - Revisar el ciclo de migraciones/backfills y la configuración de CORS, autenticación e integraciones.
 - La cobertura unitaria no reemplaza pruebas end-to-end, de dispositivos ni de pagos.
-- El repositorio contiene archivos SQLite históricos; el backend actual usa PostgreSQL. No son necesarios para instalarlo. No se verificó su contenido ni se certifica que sean datos de ejemplo; requieren revisión y una decisión explícita sobre su retirada e historial antes de considerar el repositorio completamente saneado.
+- Los tres archivos SQLite históricos fueron retirados del tracking en esta rama; el backend usa PostgreSQL y no los necesita. Sus copias locales se conservaron. No se inspeccionó su contenido ni se confirmó información sensible. Siguen accesibles en el historial y en main hasta fusionar el PR; este cambio no purga el historial.
 - Los cambios de presentación o código no eliminan información ya existente en el historial de Git.
 
 Consultá [INSTRUCCIONES.md](INSTRUCCIONES.md) para la guía de entrada y [docs/PORTFOLIO_REVIEW.md](docs/PORTFOLIO_REVIEW.md) para el alcance de la revisión.

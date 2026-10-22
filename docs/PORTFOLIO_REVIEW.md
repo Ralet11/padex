@@ -21,7 +21,7 @@ These checks use no production database or credentials. They do not validate Pos
 
 ## Remaining review gates
 
-1. Review the historical tracked SQLite, SHM and WAL artifacts with the repository owner. Their contents were not inspected and the files were not removed. Any history cleanup is a separate decision.
+1. The owner authorized removing database.sqlite, database.sqlite-shm and database.sqlite-wal from tracking on this branch in a recoverable commit. Local copies were preserved and contents were not inspected. The files remain in public history and in main until this PR is merged. No sensitive content is confirmed; any history cleanup is a separate decision.
 2. Perform a complete local demo with disposable PostgreSQL and two test users; capture only synthetic data if adding screenshots.
 3. Replace automatic schema alteration/backfill with a reviewed production migration process before production use.
 4. Verify payment/provider behavior, CORS policy, device flows and release configuration independently. This is not a complete security audit or certification.

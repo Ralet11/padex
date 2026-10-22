@@ -2,7 +2,7 @@
 
 La guía actual está en el [README principal](README.md#inicio-local).
 
-El backend usa **PostgreSQL**, no SQLite. Los archivos SQLite del repositorio son históricos y no deben emplearse como base de la demo. No se crean ni se cargan automáticamente.
+El backend usa **PostgreSQL**, no SQLite. Los archivos SQLite históricos fueron retirados del tracking de esta rama y no deben emplearse como base de la demo. No se crean ni se cargan automáticamente. Sus copias locales se conservan; siguen en el historial y en main hasta fusionar el PR.
 
 - API: `backend/`, configurar `.env` a partir de `.env.example`, `npm ci` y `npm run dev`.
 - Panel de clubes: `partners-web/`, `npm ci`, `.env.example` → `.env`, `npm run dev`.
