@@ -10,6 +10,8 @@ const jwt = require('jsonwebtoken');
 
 const { sequelize, User, Connection, Message } = require('./models');
 const seedDatabase = require('./seed');
+const { registerChatSubscriptions } = require('./services/chatAccess');
+const { registerChatMessages } = require('./services/chatMessages');
 const SyncWorker = require('./services/SyncWorker');
 const MatchPaymentsWorker = require('./services/MatchPaymentsWorker');
 const { setIO, getVenueRoom, getVenueDateRoom } = require('./services/realtime');
@@ -133,9 +135,7 @@ io.on('connection', (socket) => {
   userSockets.set(userId, socket.id);
   console.log(`[socket] user ${userId} connected`);
 
-  socket.on('join_connection', (connectionId) => {
-    socket.join(`conn_${connectionId}`);
-  });
+  registerChatSubscriptions(socket, Connection);
 
   socket.on('join_venue_availability', ({ venue_id, date }) => {
     if (!venue_id) return;
@@ -153,53 +153,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('send_message', async ({ connection_id, content }) => {
-    if (!connection_id || !content?.trim()) return;
-
-    try {
-      const conn = await Connection.findOne({
-        where: {
-          id: connection_id,
-          status: 'accepted'
-        }
-      });
-
-      if (!conn || (conn.requester_id !== userId && conn.addressee_id !== userId)) {
-        return; // Not authorized or connection not accepted
-      }
-
-      const newMessage = await Message.create({
-        connection_id,
-        sender_id: userId,
-        content: content.trim()
-      });
-
-      // Fetch with sender include
-      const messageWithSender = await Message.findOne({
-        where: { id: newMessage.id },
-        include: [{ model: User, as: 'Sender', attributes: ['name', 'avatar', 'avatar_seed'] }]
-      });
-
-      // Broadcast to all members in the room.
-      io.to(`conn_${connection_id}`).emit('new_message', messageWithSender);
-
-      // Push a lightweight notification if partner is online.
-      const partnerId = conn.requester_id === userId ? conn.addressee_id : conn.requester_id;
-      const partnerSocket = userSockets.get(partnerId);
-      if (partnerSocket) {
-        io.to(partnerSocket).emit('message_notification', {
-          connection_id,
-          message: messageWithSender,
-        });
-      }
-    } catch (err) {
-      console.error('[socket] Error sending message:', err);
-    }
-  });
-
-  socket.on('typing', ({ connection_id }) => {
-    socket.to(`conn_${connection_id}`).emit('user_typing', { user_id: userId });
-  });
+  registerChatMessages(socket, { Connection, Message, User, io, userSockets });
 
   socket.on('disconnect', () => {
     userSockets.delete(userId);
@@ -214,14 +168,16 @@ sequelize.authenticate()
     return sequelize.sync({ alter: true }); // Syncs schemas without dropping
   })
   .then(async () => {
-    await seedDatabase();
+    if (process.env.SEED_DEMO === 'true') await seedDatabase();
     const foundationResult = await runCanonicalFoundationBackfill();
     console.log('[startup] Competitive foundation ready:', foundationResult);
-    console.log('[startup] ✅ PostgreSQL Models synchronized and seeded.');
+    console.log('[startup] ✅ PostgreSQL Models synchronized; optional demo seed and foundation checks complete.');
     
     // Initialize background workers
-    SyncWorker.init();
-    MatchPaymentsWorker.init();
+    if (process.env.DISABLE_BACKGROUND_WORKERS !== 'true') {
+      SyncWorker.init();
+      MatchPaymentsWorker.init();
+    }
   })
   .catch(err => console.error('[startup] ❌ Error syncing models:', err));
 

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeJwtPayload, isJwtExpired, readStoredSession } from './runtime';
 

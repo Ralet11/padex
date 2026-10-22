@@ -1,0 +1,29 @@
+name: Portfolio checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  unit-and-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: partners-web/package-lock.json
+      - run: npm test
+        working-directory: backend
+      - run: npm ci
+        working-directory: partners-web
+      - run: npm test
+        working-directory: partners-web
+      - run: npm run build
+        working-directory: partners-web
+      - run: npm run lint
+        working-directory: partners-web

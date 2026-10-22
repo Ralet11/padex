@@ -1,7 +1,9 @@
+const { assertDemoSeedAllowed } = require('./services/demoSeedPolicy');
 const { Venue, Court, Slot, User } = require('./models');
 const { dateToStr } = require('./services/availability');
 
 async function seedDatabase() {
+    const { email, password } = assertDemoSeedAllowed();
     try {
         const courtCount = await Court.count();
 
@@ -12,11 +14,11 @@ async function seedDatabase() {
 
         console.log('[seeder] Seeding init venue and courts...');
 
-        await User.findOrCreate({
-            where: { email: 'admin@padex.com' },
+        const [admin] = await User.findOrCreate({
+            where: { email },
             defaults: {
                 name: 'Super Admin',
-                password: 'Padex124356879!',
+                password,
                 role: 'admin'
             }
         });
@@ -27,7 +29,7 @@ async function seedDatabase() {
             phone: '+5491112345678',
             price_per_slot: 12000,
             services: ['wifi', 'vestuario', 'estacionamiento'],
-            manager_id: 1
+            manager_id: admin.id
         });
 
         const createdCourts = await Court.bulkCreate([
@@ -71,6 +73,7 @@ async function seedDatabase() {
         console.log('[seeder] Seed successful!');
     } catch (err) {
         console.error('[seeder] Error:', err);
+        throw err;
     }
 }
 

@@ -34,8 +34,8 @@ function decodeBase64UrlSegment(segment) {
     const decoded =
       typeof atob === 'function'
         ? atob(padded)
-        : typeof Buffer !== 'undefined'
-        ? Buffer.from(padded, 'base64').toString('binary')
+        : typeof globalThis.Buffer !== 'undefined'
+        ? globalThis.Buffer.from(padded, 'base64').toString('binary')
         : null;
     if (!decoded) return null;
     const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
