@@ -8,3 +8,9 @@ node_modules/
 *.local
 
 .expo/
+
+# Local database/build artifacts (existing tracked files require separate review)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+partners-web/dist/

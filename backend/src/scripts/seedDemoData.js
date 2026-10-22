@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { assertDemoSeedAllowed } = require('../services/demoSeedPolicy');
+const { password: demoPassword } = assertDemoSeedAllowed();
 
 const { Op } = require('sequelize');
 const {
@@ -19,7 +21,7 @@ const { updateSlotLifecycle } = require('../services/competitive/matchLifecycle'
 const TARGET_TOTAL_VENUES = 5;
 const TARGET_DEMO_PLAYERS = 25;
 const TARGET_OPEN_MATCHES = 24;
-const DEMO_PASSWORD = 'PadexDemo123!';
+const DEMO_PASSWORD = demoPassword;
 const DEMO_MATCH_PREFIX = 'Demo Match';
 
 const PLAYER_FIRST_NAMES = ['Mateo', 'Lautaro', 'Santiago', 'Tomas', 'Valentin'];

@@ -1,16 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Onboarding from './features/onboarding/Onboarding';
+const Onboarding = lazy(() => import('./features/onboarding/Onboarding'));
 import Landing from './features/auth/Landing';
 import HomeLanding from './features/home/HomeLanding';
 import PrivacyPolicyPage from './features/legal/PrivacyPolicyPage';
 import AccountDeletionPage from './features/legal/AccountDeletionPage';
-import AdminDashboard from './features/admin/AdminDashboard';
-import HoyPage from './features/operations/routes/HoyPage';
-import AgendaPage from './features/operations/routes/AgendaPage';
-import ExcepcionesPage from './features/operations/routes/ExcepcionesPage';
-import CanchasPage from './features/operations/routes/CanchasPage';
-import SedePage from './features/operations/routes/SedePage';
+const AdminDashboard = lazy(() => import('./features/admin/AdminDashboard'));
+const HoyPage = lazy(() => import('./features/operations/routes/HoyPage'));
+const AgendaPage = lazy(() => import('./features/operations/routes/AgendaPage'));
+const ExcepcionesPage = lazy(() => import('./features/operations/routes/ExcepcionesPage'));
+const CanchasPage = lazy(() => import('./features/operations/routes/CanchasPage'));
+const SedePage = lazy(() => import('./features/operations/routes/SedePage'));
 import {
   api,
   clearStoredSession,
@@ -186,6 +186,7 @@ function App() {
 
   return (
     <RouterComponent>
+      <Suspense fallback={<AuthBootScreen />}>
       <Routes>
         <Route 
           path="/socios" 
@@ -255,6 +256,7 @@ function App() {
 
         <Route path="/" element={<HomeLanding />} />
       </Routes>
+      </Suspense>
     </RouterComponent>
   );
 }
